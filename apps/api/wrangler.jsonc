@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-cook-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-14",
+  "vars": {
+    "ASSETS_PUBLIC_BASE_URL": "https://images.open-cook.com"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "open-cook",
+      "database_id": "replace-with-cloudflare-d1-database-id",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RECIPE_IMAGES",
+      "bucket_name": "open-cook-recipe-images"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

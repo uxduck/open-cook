@@ -1,0 +1,39 @@
+{
+  "name": "@open-cook/api",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.9",
+    "@better-auth/passkey": "^1.6.9",
+    "@hono/standard-validator": "^0.2.0",
+    "@hono/swagger-ui": "^0.6.0",
+    "@open-cook/core": "workspace:*",
+    "@scalar/hono-api-reference": "^0.10.0",
+    "@valibot/to-json-schema": "^1.5.0",
+    "better-auth": "^1.6.9",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.12.5",
+    "hono-openapi": "^1.3.0",
+    "valibot": "^1.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260514.1",
+    "@types/node": "^25.3.5",
+    "drizzle-kit": "^0.31.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
+    "wrangler": "^4.71.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787",
+    "build": "tsc --build",
+    "deploy": "wrangler deploy --minify",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply open-cook --local",
+    "db:migrate:remote": "wrangler d1 migrations apply open-cook --remote",
+    "db:seed:local": "wrangler d1 execute open-cook --local --file seeds/dev-recipes.sql",
+    "typecheck": "tsc --build",
+    "test": "vitest run --passWithNoTests"
+  }
+}

@@ -1,0 +1,141 @@
+import { recipeSchema } from "@open-cook/core";
+import { Hono } from "hono";
+import { describeRoute, resolver, validator } from "hono-openapi";
+import * as v from "valibot";
+import type { Env } from "../../AppContext";
+import { mirrorRecipeImages } from "../../assets/imageAssets";
+
+const imageAssetSchema = v.object({
+  key: v.string(),
+  url: v.string(),
+  sourceUrl: v.string(),
+  contentType: v.string(),
+  size: v.number(),
+});
+
+const imageFromUrlSchema = v.object({
+  url: v.pipe(v.string(), v.url()),
+  recipeId: v.optional(v.string()),
+  filename: v.optional(v.string()),
+});
+
+const imageKeyParamSchema = v.object({
+  key: v.pipe(v.string(), v.minLength(1)),
+});
+
+const mirrorRecipesResultSchema = v.object({
+  failed: v.number(),
+  updated: v.number(),
+  skipped: v.number(),
+  recipes: v.array(recipeSchema),
+});
+
+export const assetsApp = new Hono<Env>()
+  .post(
+    "/images/from-url",
+    describeRoute({
+      description:
+        "Copy a public recipe image URL into the configured public R2 bucket.",
+      responses: {
+        201: {
+          content: {
+            "application/json": { schema: resolver(imageAssetSchema) },
+          },
+          description: "Image copied into R2.",
+        },
+        503: { description: "R2 image storage is not configured." },
+      },
+    }),
+    validator("json", imageFromUrlSchema),
+    async (c) => {
+      if (!c.var.assets.canStore) {
+        return c.json({ error: "R2 image storage is not configured." }, 503);
+      }
+
+      try {
+        const asset = await c.var.assets.storeImageFromUrl(c.req.valid("json").url, {
+          filename: c.req.valid("json").filename,
+          recipeId: c.req.valid("json").recipeId,
+        });
+        return c.json(asset, 201);
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : "Image import failed" },
+          422,
+        );
+      }
+    },
+  )
+  .post(
+    "/images/mirror-recipes",
+    describeRoute({
+      description:
+        "Copy all recipe image URLs into public R2 and update recipes to point at the owned copies.",
+      responses: {
+        200: {
+          content: {
+            "application/json": { schema: resolver(mirrorRecipesResultSchema) },
+          },
+          description: "Recipe images mirrored.",
+        },
+        503: { description: "R2 image storage is not configured." },
+      },
+    }),
+    async (c) => {
+      if (!c.var.assets.canStore) {
+        return c.json({ error: "R2 image storage is not configured." }, 503);
+      }
+
+      const recipes = await c.var.store.list();
+      const mirroredRecipes = await mirrorRecipeImages(recipes, c.var.assets);
+      const updatedRecipes = mirroredRecipes.filter((recipe, index) => {
+        return recipe.imageUrl !== recipes[index]?.imageUrl;
+      });
+      const failed = mirroredRecipes.filter((recipe, index) => {
+        const original = recipes[index];
+        return (
+          original?.imageUrl &&
+          recipe.imageUrl === original.imageUrl &&
+          !c.var.assets.isManagedUrl(recipe.imageUrl)
+        );
+      }).length;
+
+      for (const recipe of updatedRecipes) {
+        await c.var.store.update(recipe.id, { imageUrl: recipe.imageUrl });
+      }
+
+      return c.json({
+        failed,
+        updated: updatedRecipes.length,
+        skipped: recipes.length - updatedRecipes.length - failed,
+        recipes: mirroredRecipes,
+      });
+    },
+  )
+  .get(
+    "/images/:key",
+    describeRoute({
+      description:
+        "Public, unsigned image read-through for local development or Worker-hosted asset URLs.",
+      responses: {
+        200: { description: "Public recipe image." },
+        404: { description: "Image not found." },
+      },
+    }),
+    validator("param", imageKeyParamSchema),
+    async (c) => {
+      const object = await c.var.assets.readImage(c.req.valid("param").key);
+      if (!object) {
+        return c.json({ error: "Image not found" }, 404);
+      }
+
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set(
+        "cache-control",
+        headers.get("cache-control") ?? "public, max-age=86400",
+      );
+      headers.set("etag", object.httpEtag);
+      return new Response(object.body, { headers });
+    },
+  );

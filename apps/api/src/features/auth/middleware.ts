@@ -1,0 +1,60 @@
+import { createMiddleware } from "hono/factory";
+import type { Env } from "../../AppContext";
+import { createD1Database } from "../../db/db";
+import { createAuth } from "./auth";
+
+export const authMiddleware = createMiddleware<Env>(async (c, next) => {
+  if (!c.env.DB) {
+    c.set("db", null);
+    c.set("auth", null);
+    c.set("user", null);
+    c.set("session", null);
+    c.set("authSessionResolutionFailed", false);
+    await next();
+    return;
+  }
+
+  const db = createD1Database(c.env.DB);
+  const auth = createAuth({
+    db,
+    env: c.env,
+    executionCtx: c.executionCtx,
+    requestUrl: c.req.url,
+  });
+
+  c.set("db", db);
+  c.set("auth", auth);
+  c.set("user", null);
+  c.set("session", null);
+  c.set("authSessionResolutionFailed", false);
+
+  if (c.req.path.startsWith("/api/auth/")) {
+    await next();
+    return;
+  }
+
+  const hasCredentials =
+    c.req.header("Authorization")?.startsWith("Bearer ") ||
+    Boolean(c.req.header("Cookie"));
+
+  if (!hasCredentials) {
+    await next();
+    return;
+  }
+
+  try {
+    const authSession = await auth.api.getSession({
+      headers: c.req.raw.headers,
+    });
+
+    if (authSession) {
+      c.set("user", authSession.user);
+      c.set("session", authSession.session);
+    }
+  } catch (error) {
+    console.error("[auth] session resolution failed", error);
+    c.set("authSessionResolutionFailed", true);
+  }
+
+  await next();
+});

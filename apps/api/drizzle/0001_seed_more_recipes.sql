@@ -1,0 +1,2 @@
+-- Recipe seed data moved to apps/api/seeds/dev-recipes.sql.
+-- Keep this migration as a no-op so existing D1 migration history stays stable.

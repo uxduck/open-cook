@@ -1,0 +1,13 @@
+.DS_Store
+node_modules
+.pnpm-store
+dist
+**/dist
+.data
+.env
+.env.local
+.wrangler
+**/.wrangler
+coverage
+*.tsbuildinfo
+artifacts/
