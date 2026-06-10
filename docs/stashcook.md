@@ -38,6 +38,8 @@ The client sends:
 
 ## Current Import Strategy
 
+### Hosted one-time import
+
 1. User logs into StashCook in their browser.
 2. User copies their own bearer token or cookie into OpenCook.
 3. OpenCook calls `GET /recipes` with:
@@ -53,6 +55,15 @@ The client sends:
 8. User exports JSON or Markdown.
 9. Codex can then inspect OpenCook's `/openapi.json` and build workflows on the
    imported data without needing StashCook credentials again.
+
+### Local export import
+
+1. User runs `scripts/stashcook-export.mjs` locally with either
+   `STASHCOOK_ACCESS_TOKEN` or `STASHCOOK_COOKIE`.
+2. The script writes `recipes.json` under `artifacts/stashcook-export/...`.
+3. User uploads `recipes.json` through OpenCook's Import page.
+4. OpenCook maps those raw rows with the same StashCook mapper, mirrors reachable
+   images, and upserts recipes without receiving StashCook session credentials.
 
 ## Questions To Resolve With Real Account Access
 

@@ -3,24 +3,105 @@
   "name": "open-cook-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-14",
-  "vars": {
-    "ASSETS_PUBLIC_BASE_URL": "https://images.open-cook.com"
+  "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": false,
+  "workers_dev": false,
+  "ai": {
+    "binding": "AI",
+    "remote": true,
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "open-cook",
-      "database_id": "replace-with-cloudflare-d1-database-id",
-      "migrations_dir": "drizzle"
-    }
+      "database_id": "391c5e5e-8cae-4d7b-b819-a3775b8d649c",
+      "migrations_dir": "drizzle",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "RECIPE_IMAGES",
-      "bucket_name": "open-cook-recipe-images"
-    }
+      "bucket_name": "open-cook-recipe-images",
+    },
   ],
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
+  // Always deploy with --env so Wrangler targets the matching API routes.
+  // Bindings are repeated because Wrangler environments do not inherit them.
+  "env": {
+    "production": {
+      "routes": [
+        "open-cook.com/api/*",
+        "open-cook.com/openapi.json*",
+        "open-cook.com/docs*",
+        "open-cook.com/scalar*",
+      ],
+      // PAID_API_KEY, PAID_WEBHOOK_SECRET, and PAID_ORGANIZATION_ID are set via
+      // `wrangler secret put ... --env production`. Do not redeclare them in vars:
+      // a var with the same name silently replaces the remote secret on deploy.
+      // PAID_PRODUCT_* come from the prod Paid org dashboard.
+      "vars": {
+        "ASSETS_PUBLIC_BASE_URL": "https://images.open-cook.com",
+        "PAID_PRODUCT_EXTERNAL_ID": "opencook",
+        "PAID_PRODUCT_PRO_ID": "prod_5nyuokMoLLw",
+        "PAID_PRODUCT_CREDITS_5_ID": "prod_5nyuokyojcT",
+        "PAID_PRODUCT_CREDITS_10_ID": "prod_5nyuomc91CK",
+      },
+      "ai": {
+        "binding": "AI",
+        "remote": true,
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "open-cook",
+          "database_id": "391c5e5e-8cae-4d7b-b819-a3775b8d649c",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "RECIPE_IMAGES",
+          "bucket_name": "open-cook-recipe-images",
+        },
+      ],
+    },
+    "staging": {
+      "name": "open-cook-api-staging",
+      "routes": [
+        "staging.open-cook.com/api/*",
+        "staging.open-cook.com/openapi.json*",
+        "staging.open-cook.com/docs*",
+        "staging.open-cook.com/scalar*",
+      ],
+      // Staging uses the Paid TEST org. PAID_API_KEY / PAID_WEBHOOK_SECRET /
+      // PAID_ORGANIZATION_ID via `wrangler secret put ... --env staging`.
+      "vars": {
+        "ASSETS_PUBLIC_BASE_URL": "https://images.open-cook.com",
+        "PAID_PRODUCT_EXTERNAL_ID": "<test-opencook-product-external-id>",
+        "PAID_PRODUCT_PRO_ID": "<test-pro-product-id>",
+        "PAID_PRODUCT_CREDITS_5_ID": "<test-credits-5-product-id>",
+        "PAID_PRODUCT_CREDITS_10_ID": "<test-credits-10-product-id>",
+      },
+      "ai": {
+        "binding": "AI",
+        "remote": true,
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "open-cook",
+          "database_id": "391c5e5e-8cae-4d7b-b819-a3775b8d649c",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "RECIPE_IMAGES",
+          "bucket_name": "open-cook-recipe-images",
+        },
+      ],
+    },
+  },
 }

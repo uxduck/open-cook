@@ -29,6 +29,55 @@
       "when": 1778802600000,
       "tag": "0003_create_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780948226000,
+      "tag": "0004_scope_recipes_to_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781136000000,
+      "tag": "0005_recipe_visibility_and_shares",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781164800000,
+      "tag": "0006_recipe_share_inbox_states",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781251200000,
+      "tag": "0007_recipe_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781337600000,
+      "tag": "0008_billing",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781424000000,
+      "tag": "0009_recipe_normalized_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1781510400000,
+      "tag": "0010_recipe_cook_progress",
+      "breakpoints": true
     }
   ]
 }

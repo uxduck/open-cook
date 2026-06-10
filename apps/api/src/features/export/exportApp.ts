@@ -2,8 +2,10 @@ import { recipesToMarkdown, recipeToMarkdown } from "@open-cook/core";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import type { Env } from "../../AppContext";
+import { requireAuthMiddleware } from "../auth/requireAuth";
 
 export const exportApp = new Hono<Env>()
+  .use("*", requireAuthMiddleware)
   .get(
     "/recipes/json",
     describeRoute({

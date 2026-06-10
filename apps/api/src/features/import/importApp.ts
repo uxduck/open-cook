@@ -1,10 +1,12 @@
-import { parseRecipeMarkdown, recipeSchema } from "@open-cook/core";
+import { parseRecipeMarkdown, recipeSchema, structureRecipe } from "@open-cook/core";
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 import * as v from "valibot";
 import type { Env } from "../../AppContext";
 import { mirrorRecipeImages, mirrorRecipeInputImage } from "../../assets/imageAssets";
-import { importStashCookRecipes } from "./stashCookImporter";
+import { requireAuthMiddleware } from "../auth/requireAuth";
+import { structureRecipeWithAi } from "../structure/recipeStructuring";
+import { importStashCookRecipes, mapStashCookRows } from "./stashCookImporter";
 import { importRecipeFromWebsite } from "./websiteImporter";
 
 const markdownImportSchema = v.object({
@@ -19,6 +21,10 @@ const stashCookImportSchema = v.object({
   includeDeleted: v.optional(v.boolean()),
 });
 
+const stashCookExportImportSchema = v.object({
+  recipes: v.pipe(v.array(v.unknown()), v.minLength(1)),
+});
+
 const websiteImportSchema = v.object({
   url: v.pipe(v.string(), v.url()),
 });
@@ -30,6 +36,7 @@ const importResultSchema = v.object({
 });
 
 export const importApp = new Hono<Env>()
+  .use("*", requireAuthMiddleware)
   .post(
     "/markdown",
     describeRoute({
@@ -50,13 +57,23 @@ export const importApp = new Hono<Env>()
         c.var.assets,
       );
       const recipe = await c.var.store.create(input);
-      return c.json(recipe, 201);
+      const structured = await structureRecipeWithAi(recipe, {
+        ai: c.env.AI,
+        model: c.env.WORKERS_AI_RECIPE_STRUCTURE_MODEL,
+      });
+      const updated =
+        (await c.var.store.update(recipe.id, {
+          ingredients: structured.ingredients,
+          steps: structured.steps,
+        })) ?? structured;
+      return c.json(updated, 201);
     },
   )
   .post(
     "/website",
     describeRoute({
-      description: "Fetch a public recipe page and import schema.org Recipe JSON-LD.",
+      description:
+        "Fetch a public recipe page, import schema.org Recipe JSON-LD, and fall back to Workers AI extraction when configured.",
       responses: {
         201: {
           content: {
@@ -70,9 +87,16 @@ export const importApp = new Hono<Env>()
     validator("json", websiteImportSchema),
     async (c) => {
       try {
-        const importedRecipe = await importRecipeFromWebsite(c.req.valid("json"));
+        const importedRecipe = await importRecipeFromWebsite(c.req.valid("json"), {
+          ai: c.env.AI,
+          aiModel: c.env.WORKERS_AI_MODEL,
+        });
+        const structuredRecipe = await structureRecipeWithAi(importedRecipe, {
+          ai: c.env.AI,
+          model: c.env.WORKERS_AI_RECIPE_STRUCTURE_MODEL,
+        });
         const mirroredRecipes = await mirrorRecipeImages(
-          [importedRecipe],
+          [structuredRecipe],
           c.var.assets,
         );
         const recipe = mirroredRecipes[0];
@@ -108,7 +132,41 @@ export const importApp = new Hono<Env>()
     validator("json", stashCookImportSchema),
     async (c) => {
       try {
-        const importedRecipes = await importStashCookRecipes(c.req.valid("json"));
+        const importedRecipes = (await importStashCookRecipes(c.req.valid("json"))).map(
+          structureRecipe,
+        );
+        const recipes = await mirrorRecipeImages(importedRecipes, c.var.assets);
+        const result = await c.var.store.upsertMany(recipes);
+        return c.json(result);
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : "Import failed" },
+          422,
+        );
+      }
+    },
+  )
+  .post(
+    "/stashcook/export",
+    describeRoute({
+      description:
+        "Import recipes from a local StashCook recipes.json export without sending StashCook credentials to OpenCook.",
+      responses: {
+        200: {
+          content: {
+            "application/json": { schema: resolver(importResultSchema) },
+          },
+          description: "StashCook export recipes imported.",
+        },
+        422: { description: "StashCook export import failed." },
+      },
+    }),
+    validator("json", stashCookExportImportSchema),
+    async (c) => {
+      try {
+        const importedRecipes = mapStashCookRows(c.req.valid("json").recipes).map(
+          structureRecipe,
+        );
         const recipes = await mirrorRecipeImages(importedRecipes, c.var.assets);
         const result = await c.var.store.upsertMany(recipes);
         return c.json(result);

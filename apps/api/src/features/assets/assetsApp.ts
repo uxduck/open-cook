@@ -4,6 +4,7 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 import * as v from "valibot";
 import type { Env } from "../../AppContext";
 import { mirrorRecipeImages } from "../../assets/imageAssets";
+import { requireAuthMiddleware } from "../auth/requireAuth";
 
 const imageAssetSchema = v.object({
   key: v.string(),
@@ -33,6 +34,7 @@ const mirrorRecipesResultSchema = v.object({
 export const assetsApp = new Hono<Env>()
   .post(
     "/images/from-url",
+    requireAuthMiddleware,
     describeRoute({
       description:
         "Copy a public recipe image URL into the configured public R2 bucket.",
@@ -67,7 +69,58 @@ export const assetsApp = new Hono<Env>()
     },
   )
   .post(
+    "/images/upload",
+    requireAuthMiddleware,
+    describeRoute({
+      description:
+        "Upload an image file. Stored (and compressed) via the configured image backend.",
+      responses: {
+        201: {
+          content: {
+            "application/json": { schema: resolver(imageAssetSchema) },
+          },
+          description: "Image uploaded.",
+        },
+        400: { description: "No image file was provided." },
+        503: { description: "Image storage is not configured." },
+      },
+    }),
+    async (c) => {
+      if (!c.var.assets.canStore) {
+        return c.json({ error: "Image storage is not configured." }, 503);
+      }
+
+      const form = await c.req.formData().catch(() => undefined);
+      const file = form?.get("file");
+      if (!(file instanceof File)) {
+        return c.json({ error: "Expected a multipart form field named 'file'." }, 400);
+      }
+
+      const contentType = file.type?.trim() || "application/octet-stream";
+      if (!contentType.startsWith("image/")) {
+        return c.json({ error: "Uploaded file is not an image." }, 400);
+      }
+
+      const recipeId = form?.get("recipeId");
+      try {
+        const asset = await c.var.assets.storeImageBytes(await file.arrayBuffer(), {
+          contentType,
+          filename: file.name,
+          recipeId: typeof recipeId === "string" ? recipeId : undefined,
+          sourceUrl: "upload",
+        });
+        return c.json(asset, 201);
+      } catch (error) {
+        return c.json(
+          { error: error instanceof Error ? error.message : "Image upload failed" },
+          422,
+        );
+      }
+    },
+  )
+  .post(
     "/images/mirror-recipes",
+    requireAuthMiddleware,
     describeRoute({
       description:
         "Copy all recipe image URLs into public R2 and update recipes to point at the owned copies.",
@@ -89,7 +142,11 @@ export const assetsApp = new Hono<Env>()
       const recipes = await c.var.store.list();
       const mirroredRecipes = await mirrorRecipeImages(recipes, c.var.assets);
       const updatedRecipes = mirroredRecipes.filter((recipe, index) => {
-        return recipe.imageUrl !== recipes[index]?.imageUrl;
+        const original = recipes[index];
+        return (
+          recipe.imageUrl !== original?.imageUrl ||
+          JSON.stringify(recipe.images) !== JSON.stringify(original?.images)
+        );
       });
       const failed = mirroredRecipes.filter((recipe, index) => {
         const original = recipes[index];
@@ -101,7 +158,10 @@ export const assetsApp = new Hono<Env>()
       }).length;
 
       for (const recipe of updatedRecipes) {
-        await c.var.store.update(recipe.id, { imageUrl: recipe.imageUrl });
+        await c.var.store.update(recipe.id, {
+          imageUrl: recipe.imageUrl,
+          images: recipe.images,
+        });
       }
 
       return c.json({

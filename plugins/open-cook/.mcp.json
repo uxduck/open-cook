@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "open-cook": {
+      "command": "sh",
+      "args": ["./scripts/run-open-cook-mcp.sh"],
+      "env": {
+        "OPEN_COOK_API_BASE": "http://127.0.0.1:8787"
+      },
+      "env_vars": ["OPEN_COOK_API_BASE", "OPEN_COOK_AUTH_TOKEN", "OPEN_COOK_COOKIE"]
+    }
+  }
+}

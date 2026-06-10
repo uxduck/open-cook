@@ -6,6 +6,7 @@ export type AuthUser = {
   username?: string | null;
   displayUsername?: string | null;
   twoFactorEnabled?: boolean | null;
+  plan?: string | null;
 };
 
 export type CurrentAuthSession = {
@@ -107,7 +108,7 @@ export const authApi = {
   }) =>
     authRequest<unknown>("/sign-up/email", {
       ...input,
-      callbackURL: "/",
+      callbackURL: "/app",
       rememberMe: true,
     }),
   signInEmail: (input: { email: string; password: string }) =>
@@ -115,6 +116,10 @@ export const authApi = {
       ...input,
       rememberMe: true,
     }),
+  requestPasswordReset: (input: { email: string; redirectTo: string }) =>
+    authRequest<{ status: boolean; message: string }>("/request-password-reset", input),
+  resetPassword: (input: { newPassword: string; token: string }) =>
+    authRequest<{ status: boolean }>("/reset-password", input),
   signInUsername: (input: { password: string; username: string }) =>
     authRequest<unknown>("/sign-in/username", {
       ...input,
@@ -122,7 +127,7 @@ export const authApi = {
     }),
   requestMagicLink: (email: string) =>
     authRequest<{ status: boolean }>("/sign-in/magic-link", {
-      callbackURL: "/",
+      callbackURL: "/app",
       email,
     }),
   sendEmailOtp: (email: string) =>
@@ -139,7 +144,9 @@ export const authApi = {
     }),
   verifyEmailOtp: (input: { email: string; otp: string }) =>
     authRequest<unknown>("/email-otp/verify-email", input),
-  signOut: () => authRequest<{ success: boolean }>("/sign-out"),
+  updateUser: (input: { name: string }) =>
+    authRequest<{ status: boolean }>("/update-user", input),
+  signOut: () => authRequest<{ success: boolean }>("/sign-out", {}),
   enableTwoFactor: (input: { issuer?: string; password?: string }) =>
     authRequest<TotpEnrollment>("/two-factor/enable", input),
   disableTwoFactor: (input: { password?: string }) =>

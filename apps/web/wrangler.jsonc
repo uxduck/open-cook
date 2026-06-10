@@ -1,0 +1,51 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "open-cook-web",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-06-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": false,
+  "workers_dev": false,
+  // assets.directory is populated automatically by @cloudflare/vite-plugin from the
+  // client build output, so it is intentionally omitted here.
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+  },
+  // Always deploy with --env so Wrangler targets the matching environment's
+  // custom domain. The API service binding lets src/server.ts proxy /api/* to the
+  // API Worker; in local dev it falls back to http://127.0.0.1:8787.
+  "env": {
+    "production": {
+      "services": [
+        {
+          "binding": "API",
+          "service": "open-cook-api-production",
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "open-cook.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+    "staging": {
+      "name": "open-cook-web-staging",
+      "services": [
+        {
+          "binding": "API",
+          "service": "open-cook-api-staging",
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "staging.open-cook.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+  },
+}

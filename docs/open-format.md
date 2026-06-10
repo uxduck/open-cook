@@ -21,9 +21,31 @@ type Recipe = {
   totalTimeMinutes?: number;
   servings?: string;
   tags: string[];
-  ingredients: { section?: string; text: string }[];
-  steps: { section?: string; text: string }[];
+  ingredients: {
+    id?: string;
+    section?: string;
+    text: string; // original/source line
+    quantity?: { value?: number; valueText?: string; unit?: string };
+    item?: string;
+    preparation?: string;
+    note?: string;
+    scalable?: boolean;
+    confidence?: number;
+    warnings?: string[];
+  }[];
+  steps: {
+    id?: string;
+    section?: string;
+    text: string; // original/source instruction
+    ingredientIds?: string[];
+    timers?: { label?: string; minutes: number }[];
+    temperature?: { value: number; unit: "C" | "F" };
+    equipment?: string[];
+    confidence?: number;
+    warnings?: string[];
+  }[];
   notes: string[];
+  visibility?: "private" | "unlisted" | "public"; // defaults to private; unlisted = link-only, public appears in Explore
   createdAt: string;
   updatedAt: string;
 };
@@ -31,7 +53,8 @@ type Recipe = {
 
 The format is deliberately boring:
 
-- Ingredients and steps keep original text first.
+- Ingredients and steps keep original text first. Structured fields are optional
+  parsed metadata for scaling, import review, timers, and cooking-mode UX.
 - Recipe photos can be mirrored into public R2 URLs, so image ownership follows
   the recipe data without signed URL plumbing.
 - Structured nutrition, unit conversion, meal plans, and collection hierarchy can

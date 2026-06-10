@@ -1,4 +1,5 @@
-import type { Recipe } from "@open-cook/core";
+import type { Recipe, RecipeImage } from "@open-cook/core";
+import { appVersion } from "../AppMetadata";
 
 const defaultCacheControl = "public, max-age=31536000, immutable";
 const maxImageBytes = 12 * 1024 * 1024;
@@ -17,18 +18,67 @@ export type StoreImageOptions = {
   filename?: string;
 };
 
+export type StoreImageBytesOptions = StoreImageOptions & {
+  contentType: string;
+  sourceUrl?: string;
+};
+
 export type ImageAssetStore = {
+  adapter: string;
   canStore: boolean;
   isManagedUrl(url: string): boolean;
   publicUrlForKey(key: string): string;
   readImage(key: string): Promise<R2ObjectBody | null>;
+  storeImageBytes(
+    bytes: ArrayBuffer | Uint8Array,
+    options: StoreImageBytesOptions,
+  ): Promise<ImageAsset>;
   storeImageFromUrl(
     sourceUrl: string,
     options?: StoreImageOptions,
   ): Promise<ImageAsset>;
 };
 
+export type CloudflareImagesConfig = {
+  accountId?: string;
+  apiToken?: string;
+  accountHash?: string;
+  variant?: string;
+};
+
+/**
+ * Picks the best available image backend. Cloudflare Images (managed storage +
+ * delivery with automatic WebP/AVIF compression) is used when fully configured;
+ * otherwise we fall back to the raw R2 bucket so local development keeps working.
+ */
 export function createImageAssetStore({
+  bucket,
+  origin,
+  publicBaseUrl,
+  cloudflareImages,
+}: {
+  bucket?: R2Bucket;
+  origin: string;
+  publicBaseUrl?: string;
+  cloudflareImages?: CloudflareImagesConfig;
+}): ImageAssetStore {
+  if (
+    cloudflareImages?.accountId &&
+    cloudflareImages.apiToken &&
+    cloudflareImages.accountHash
+  ) {
+    return createCloudflareImagesStore({
+      accountId: cloudflareImages.accountId,
+      apiToken: cloudflareImages.apiToken,
+      accountHash: cloudflareImages.accountHash,
+      variant: cloudflareImages.variant,
+    });
+  }
+
+  return createR2ImageAssetStore({ bucket, origin, publicBaseUrl });
+}
+
+function createR2ImageAssetStore({
   bucket,
   origin,
   publicBaseUrl,
@@ -40,6 +90,7 @@ export function createImageAssetStore({
   const publicBase = normalizeBaseUrl(publicBaseUrl) ?? `${origin}/api/assets/images`;
 
   return {
+    adapter: "cloudflare-r2",
     canStore: Boolean(bucket),
     isManagedUrl(url: string) {
       return normalizeComparableUrl(url).startsWith(`${publicBase}/`);
@@ -49,6 +100,49 @@ export function createImageAssetStore({
     },
     async readImage(key: string) {
       return bucket ? bucket.get(key) : null;
+    },
+    async storeImageBytes(
+      bytes: ArrayBuffer | Uint8Array,
+      options: StoreImageBytesOptions,
+    ) {
+      if (!bucket) {
+        throw new Error("Recipe image R2 bucket is not configured.");
+      }
+
+      const imageBytes = bytesToArrayBuffer(bytes);
+      if (imageBytes.byteLength > maxImageBytes) {
+        throw new Error("Image is larger than the OpenCook demo limit.");
+      }
+
+      const contentType = options.contentType.split(";")[0]?.trim().toLowerCase();
+      if (!contentType?.startsWith("image/")) {
+        throw new Error("Generated output did not return an image.");
+      }
+
+      const sourceUrl = options.sourceUrl ?? "generated";
+      const hash = await shortHash(imageBytes);
+      const extension = extensionFromContentType(contentType) ?? "img";
+      const key = `${safeSegment(
+        options.recipeId ?? options.filename ?? "recipe-image",
+      )}-${hash}.${extension}`;
+
+      await bucket.put(key, imageBytes, {
+        customMetadata: {
+          sourceUrl,
+        },
+        httpMetadata: {
+          cacheControl: defaultCacheControl,
+          contentType,
+        },
+      });
+
+      return {
+        key,
+        url: `${publicBase}/${encodeURIComponent(key)}`,
+        sourceUrl,
+        contentType,
+        size: imageBytes.byteLength,
+      };
     },
     async storeImageFromUrl(sourceUrl: string, options: StoreImageOptions = {}) {
       if (!bucket) {
@@ -61,7 +155,7 @@ export function createImageAssetStore({
       const response = await fetch(sourceUrl, {
         headers: {
           Accept: "image/*,*/*;q=0.8",
-          "User-Agent": "OpenCook/0.1 recipe image portability tool",
+          "User-Agent": `OpenCook/${appVersion} recipe image portability tool`,
         },
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
@@ -111,22 +205,170 @@ export function createImageAssetStore({
   };
 }
 
+const cloudflareImagesMaxBytes = 10 * 1024 * 1024;
+
+type CloudflareImagesResult = {
+  id: string;
+  filename?: string;
+  variants?: string[];
+};
+
+function createCloudflareImagesStore(
+  config: Required<Pick<CloudflareImagesConfig, "accountId" | "apiToken" | "accountHash">> &
+    Pick<CloudflareImagesConfig, "variant">,
+): ImageAssetStore {
+  const variant = config.variant?.trim() || "public";
+  const deliveryBase = `https://imagedelivery.net/${config.accountHash}`;
+  const uploadEndpoint = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/images/v1`;
+
+  function urlForId(id: string) {
+    return `${deliveryBase}/${encodeURIComponent(id)}/${variant}`;
+  }
+
+  function pickDeliveryUrl(result: CloudflareImagesResult) {
+    const match = result.variants?.find((url) => url.endsWith(`/${variant}`));
+    return match ?? urlForId(result.id);
+  }
+
+  async function upload(form: FormData): Promise<CloudflareImagesResult> {
+    const response = await fetch(uploadEndpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.apiToken}` },
+      body: form,
+    });
+
+    const data = (await response.json().catch(() => undefined)) as
+      | { success?: boolean; result?: CloudflareImagesResult; errors?: unknown[] }
+      | undefined;
+
+    if (!response.ok || !data?.success || !data.result?.id) {
+      const detail =
+        Array.isArray(data?.errors) && data.errors.length
+          ? JSON.stringify(data.errors)
+          : `${response.status}`;
+      throw new Error(`Cloudflare Images upload failed: ${detail}`);
+    }
+
+    return data.result;
+  }
+
+  return {
+    adapter: "cloudflare-images",
+    canStore: true,
+    isManagedUrl(url: string) {
+      return normalizeComparableUrl(url).startsWith(`${deliveryBase}/`);
+    },
+    publicUrlForKey(key: string) {
+      return urlForId(key);
+    },
+    // Cloudflare Images serves bytes directly from imagedelivery.net.
+    async readImage() {
+      return null;
+    },
+    async storeImageBytes(
+      bytes: ArrayBuffer | Uint8Array,
+      options: StoreImageBytesOptions,
+    ) {
+      const imageBytes = bytesToArrayBuffer(bytes);
+      if (imageBytes.byteLength > cloudflareImagesMaxBytes) {
+        throw new Error("Image is larger than the 10MB Cloudflare Images limit.");
+      }
+
+      const contentType = options.contentType.split(";")[0]?.trim().toLowerCase();
+      if (!contentType?.startsWith("image/")) {
+        throw new Error("Generated output did not return an image.");
+      }
+
+      const extension = extensionFromContentType(contentType) ?? "img";
+      const filename = `${safeSegment(
+        options.recipeId ?? options.filename ?? "recipe-image",
+      )}.${extension}`;
+
+      const form = new FormData();
+      form.append("file", new Blob([imageBytes], { type: contentType }), filename);
+      const result = await upload(form);
+
+      return {
+        key: result.id,
+        url: pickDeliveryUrl(result),
+        sourceUrl: options.sourceUrl ?? "generated",
+        contentType,
+        size: imageBytes.byteLength,
+      };
+    },
+    async storeImageFromUrl(sourceUrl: string, _options: StoreImageOptions = {}) {
+      const form = new FormData();
+      form.append("url", sourceUrl);
+      const result = await upload(form);
+
+      return {
+        key: result.id,
+        url: pickDeliveryUrl(result),
+        sourceUrl,
+        contentType: inferContentType(sourceUrl) ?? "image/jpeg",
+        size: 0,
+      };
+    },
+  };
+}
+
+function bytesToArrayBuffer(bytes: ArrayBuffer | Uint8Array) {
+  if (bytes instanceof ArrayBuffer) {
+    return bytes;
+  }
+
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+async function mirrorExternalUrl(
+  url: string,
+  assets: ImageAssetStore,
+  options: StoreImageOptions,
+): Promise<string> {
+  if (!assets.canStore || assets.isManagedUrl(url)) {
+    return url;
+  }
+  try {
+    const asset = await assets.storeImageFromUrl(url, options);
+    return asset.url;
+  } catch {
+    return url;
+  }
+}
+
 export async function mirrorRecipeInputImage<
-  T extends { imageUrl?: string; title?: string },
+  T extends { imageUrl?: string; images?: RecipeImage[]; title?: string },
 >(input: T, assets: ImageAssetStore, options: StoreImageOptions = {}): Promise<T> {
-  if (!input.imageUrl || !assets.canStore || assets.isManagedUrl(input.imageUrl)) {
+  if (!assets.canStore) {
     return input;
   }
 
-  try {
-    const asset = await assets.storeImageFromUrl(input.imageUrl, {
-      filename: input.title,
-      ...options,
-    });
-    return { ...input, imageUrl: asset.url };
-  } catch {
+  const filenameOptions = { filename: input.title, ...options };
+
+  const images = input.images?.length
+    ? await Promise.all(
+        input.images.map(async (image) => ({
+          ...image,
+          url: await mirrorExternalUrl(image.url, assets, filenameOptions),
+        })),
+      )
+    : input.images;
+
+  // Keep the legacy cover in sync: prefer the (mirrored) gallery cover, else
+  // mirror the standalone imageUrl for imports that only set the single field.
+  const imageUrl = images?.length
+    ? images[0]?.url
+    : input.imageUrl
+      ? await mirrorExternalUrl(input.imageUrl, assets, filenameOptions)
+      : input.imageUrl;
+
+  if (images === input.images && imageUrl === input.imageUrl) {
     return input;
   }
+
+  return { ...input, images, imageUrl };
 }
 
 export async function mirrorRecipeImages(
@@ -142,6 +384,7 @@ export async function mirrorRecipeImages(
       return {
         ...recipe,
         imageUrl: mirrored.imageUrl,
+        images: mirrored.images,
       };
     }),
   );

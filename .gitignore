@@ -11,3 +11,4 @@ dist
 coverage
 *.tsbuildinfo
 artifacts/
+__pycache__/

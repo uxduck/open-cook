@@ -7,12 +7,15 @@ import * as v from "valibot";
 import type { Env } from "./AppContext";
 import { appDescription, appName, appVersion } from "./AppMetadata";
 import { agentApp } from "./features/agents/agentApp";
+import { aiApp } from "./features/ai/aiApp";
 import { assetsApp } from "./features/assets/assetsApp";
-import { trustedOriginsFor } from "./features/auth/auth";
+import { billingApp, billingWebhookApp } from "./features/billing/billingApp";
+import { isTrustedOriginFor } from "./features/auth/auth";
 import { authMiddleware } from "./features/auth/middleware";
 import { exportApp } from "./features/export/exportApp";
 import { importApp } from "./features/import/importApp";
 import { recipeApp } from "./features/recipes/recipeApp";
+import { structureApp } from "./features/structure/structureApp";
 import { storeMiddleware } from "./storage/storeMiddleware";
 
 const openapiPath = "/openapi.json";
@@ -141,15 +144,19 @@ const apiApp = new Hono<Env>()
           ],
         },
         imageAssets: {
-          adapter: c.var.assets.canStore ? "cloudflare-r2" : "disabled",
+          adapter: c.var.assets.canStore ? c.var.assets.adapter : "disabled",
           publicBaseUrl: c.var.assets.publicUrlForKey("").replace(/\/$/, ""),
           publicRoute: "/api/assets/images/:key",
         },
       }),
   )
   .route("/agents", agentApp)
+  .route("/ai", aiApp)
   .route("/assets", assetsApp)
+  .route("/billing", billingApp)
+  .route("/paid-webhook", billingWebhookApp)
   .route("/recipes", recipeApp)
+  .route("/structure", structureApp)
   .route("/import", importApp)
   .route("/export", exportApp);
 
@@ -163,7 +170,7 @@ const app = new Hono<Env>()
       exposeHeaders: ["set-auth-token"],
       origin: (origin, c) => {
         if (!origin) return null;
-        return trustedOriginsFor(c.env, c.req.url).includes(origin) ? origin : null;
+        return isTrustedOriginFor(c.env, c.req.url, origin) ? origin : null;
       },
     }),
   )

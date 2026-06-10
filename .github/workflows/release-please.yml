@@ -1,0 +1,31 @@
+name: Release Please
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Prepare opens/updates the release PR; publish creates the GitHub release after that PR is merged.
+        required: true
+        default: prepare
+        type: choice
+        options:
+          - prepare
+          - publish
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+          skip-github-release: ${{ inputs.mode == 'prepare' }}
+          skip-github-pull-request: ${{ inputs.mode == 'publish' }}

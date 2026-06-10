@@ -5,15 +5,15 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build",
+    "test": "vitest run --passWithNoTests"
+  },
   "dependencies": {
     "valibot": "^1.2.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
-  },
-  "scripts": {
-    "build": "tsc --build",
-    "typecheck": "tsc --build",
-    "test": "vitest run --passWithNoTests"
   }
 }

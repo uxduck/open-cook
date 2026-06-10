@@ -1,0 +1,86 @@
+[
+  {
+    "id": "hero-feast",
+    "role": "hero",
+    "imageSize": "landscape_4_3",
+    "keyColor": "#ff00ff",
+    "prompt": "A playful hand-painted illustration of a floating home-cooked feast for a modern recipe app: a steaming tomato pasta bowl, golden lentil soup, roasted vegetables, herbs, lemon wedges, recipe cards, a wooden spoon, and scattered plant ingredients orbiting gently around the food. Warm homely mood, kid-friendly, polished gouache and watercolor texture, crisp readable silhouettes, generous padding, appetizing color, no photorealism. Plant-based ingredients only, no animal-derived ingredients, no people, no readable text, no logos."
+  },
+  {
+    "id": "magic-pot",
+    "role": "feature",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A cozy illustrated cooking pot with colorful vegetables, herbs, pasta shapes, beans, and little sparkles rising from the steam, like a recipe idea becoming dinner. Playful hand-painted gouache style, warm homely feeling, kid-friendly, polished for a recipe app marketing website, crisp silhouette, generous padding. Plant-based ingredients only, no animal-derived ingredients, no people, no readable text, no logos."
+  },
+  {
+    "id": "storybook-cookbook",
+    "role": "feature",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A whimsical open cookbook with illustrated food rising from the pages: vegetables, pasta, soup steam, herbs, tiny sparkles, and recipe-card shapes, as if a recipe is coming to life. Hand-painted storybook gouache style, warm, playful, homely, polished for a modern app website, crisp silhouette, generous padding. Plant-based ingredients only, no animal-derived ingredients, no people, no readable text, no logos."
+  },
+  {
+    "id": "lunchbox",
+    "role": "feature",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A cute open lunchbox filled with colorful wraps, fruit, vegetable sticks, hummus, crackers, and tiny illustrated stars. Friendly hand-painted gouache and watercolor texture, playful but not childish, homely recipe app feeling, clean silhouette, generous padding. Plant-based ingredients only, no animal-derived ingredients, no people, no readable text, no logos."
+  },
+  {
+    "id": "tomato",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A single cheerful ripe tomato cutout with a tiny green stem, chunky hand-painted gouache texture, playful kid-friendly shape, appetizing red color, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "potato",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A charming golden potato cutout with a few soft speckles and a friendly rounded shape, playful hand-painted gouache texture, warm homely feel, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "carrot",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A playful carrot cutout with leafy top, slightly chunky storybook shape, hand-painted gouache and watercolor texture, bright but tasteful orange, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "broccoli",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A cute broccoli floret cutout with bouncy rounded top and sturdy stem, playful hand-painted gouache texture, kid-friendly shape, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "mushroom",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A friendly mushroom cutout with a rounded cap and soft beige stem, hand-painted gouache and watercolor texture, cozy homely mood, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "lemon",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A bright lemon wedge cutout with juicy segments and a little peel texture, playful hand-painted gouache style, fresh cheerful color, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "garlic",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A cozy garlic bulb cutout with two loose cloves, hand-painted gouache texture, warm cream and purple tones, crisp silhouette, generous padding, modern recipe app marketing asset. Plant ingredient only, no plate, no people, no readable text, no logos."
+  },
+  {
+    "id": "pasta-shell",
+    "role": "ingredient",
+    "imageSize": "square_hd",
+    "keyColor": "#ff00ff",
+    "prompt": "A single playful pasta shell cutout, chunky hand-painted gouache texture, warm golden color, crisp silhouette, generous padding, modern recipe app marketing asset. Plant-based pantry ingredient only, no plate, no people, no readable text, no logos."
+  }
+]

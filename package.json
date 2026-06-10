@@ -2,18 +2,29 @@
   "name": "open-cook",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.26.2",
   "scripts": {
     "dev": "pnpm --parallel dev",
     "dev:api": "pnpm --filter @open-cook/api dev",
     "dev:web": "pnpm --filter @open-cook/web dev",
+    "db:studio": "pnpm --filter @open-cook/api db:studio",
+    "db:studio:prod": "pnpm --filter @open-cook/api db:studio:prod",
+    "db:studio:production": "pnpm --filter @open-cook/api db:studio:production",
+    "db:studio:staging": "pnpm --filter @open-cook/api db:studio:staging",
+    "deploy": "pnpm run deploy:production",
+    "deploy:production": "pnpm --filter @open-cook/api deploy:production && pnpm --filter @open-cook/web deploy:production",
+    "deploy:staging": "pnpm --filter @open-cook/api deploy:staging && pnpm --filter @open-cook/web deploy:staging",
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
     "test": "pnpm --recursive test",
-    "format": "biome check --write .",
-    "lint": "biome check ."
+    "generate:food-assets": "node tools/generate-food-assets.mjs",
+    "review:food-assets": "python3 tools/review-food-assets.py",
+    "format": "oxfmt --write . && oxlint --fix .",
+    "lint": "oxfmt --check . && oxlint ."
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.10"
-  }
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0"
+  },
+  "packageManager": "pnpm@10.26.2"
 }

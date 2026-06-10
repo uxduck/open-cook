@@ -32,10 +32,12 @@ const db = new DatabaseSync(dbPath);
 
 db.exec("PRAGMA foreign_keys = ON");
 ensureTables(db);
+const userId = readImportUserId(db);
 
 const insertRecipe = db.prepare(`
   INSERT INTO recipes (
     id,
+    user_id,
     title,
     description,
     image_url,
@@ -52,6 +54,7 @@ const insertRecipe = db.prepare(`
     updated_at
   ) VALUES (
     $id,
+    $userId,
     $title,
     $description,
     $imageUrl,
@@ -67,7 +70,7 @@ const insertRecipe = db.prepare(`
     $createdAt,
     $updatedAt
   )
-  ON CONFLICT(id) DO UPDATE SET
+  ON CONFLICT(user_id, id) DO UPDATE SET
     title = excluded.title,
     description = excluded.description,
     image_url = excluded.image_url,
@@ -107,7 +110,7 @@ let rawExportCount = 0;
 db.exec("BEGIN");
 try {
   for (const recipe of activeRecipes) {
-    insertRecipe.run(recipeToRow(recipe, revisionById.get(recipe.id)));
+    insertRecipe.run(recipeToRow(recipe, revisionById.get(recipe.id), userId));
   }
 
   for (const filename of await readdir(exportDir)) {
@@ -132,11 +135,13 @@ try {
 }
 
 const stashcookRecipeCount = db
-  .prepare("SELECT COUNT(*) AS count FROM recipes WHERE id LIKE 'stashcook-%'")
-  .get().count;
+  .prepare(
+    "SELECT COUNT(*) AS count FROM recipes WHERE user_id = $userId AND id LIKE 'stashcook-%'",
+  )
+  .get({ userId }).count;
 const totalRecipeCount = db
-  .prepare("SELECT COUNT(*) AS count FROM recipes")
-  .get().count;
+  .prepare("SELECT COUNT(*) AS count FROM recipes WHERE user_id = $userId")
+  .get({ userId }).count;
 const rawTableCount = db
   .prepare("SELECT COUNT(*) AS count FROM stashcook_raw_exports")
   .get().count;
@@ -145,6 +150,7 @@ console.log(
   JSON.stringify(
     {
       dbPath,
+      userId,
       importedRecipes: activeRecipes.length,
       stashcookRecipesInDb: stashcookRecipeCount,
       totalRecipesInDb: totalRecipeCount,
@@ -171,6 +177,22 @@ function ensureTables(database) {
   `);
 }
 
+function readImportUserId(database) {
+  const configuredUserId = process.env.OPEN_COOK_USER_ID?.trim();
+  if (configuredUserId) {
+    return configuredUserId;
+  }
+
+  const users = database.prepare("SELECT id FROM user ORDER BY created_at").all();
+  if (users.length !== 1) {
+    throw new Error(
+      `Expected exactly one Better Auth user; found ${users.length}. Set OPEN_COOK_USER_ID to choose the import owner.`,
+    );
+  }
+
+  return users[0].id;
+}
+
 async function discoverD1DatabasePath(directory) {
   const filenames = await readdir(directory);
   const databases = filenames
@@ -192,7 +214,7 @@ async function readJson(filename) {
   return JSON.parse(await readFile(filename, "utf8"));
 }
 
-function recipeToRow(recipe, revision) {
+function recipeToRow(recipe, revision, userId) {
   const externalId = stringValue(recipe.id);
   if (!externalId) {
     throw new Error(`Recipe is missing id: ${JSON.stringify(recipe).slice(0, 200)}`);
@@ -207,6 +229,7 @@ function recipeToRow(recipe, revision) {
 
   return {
     id: `stashcook-${externalId}`,
+    userId,
     title: stringValue(recipe.name) ?? stringValue(recipe.title) ?? "Untitled recipe",
     description:
       stringValue(recipe.description) ??

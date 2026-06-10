@@ -1,10 +1,10 @@
 -- Dev-only recipe seed data.
 -- Do not apply this automatically or in production.
--- When recipe ownership is added, update this file to seed these rows for a
--- specific Better Auth user id.
+-- Seeds rows for the first Better Auth user in the local database.
 
 INSERT INTO `recipes` (
   `id`,
+  `user_id`,
   `title`,
   `description`,
   `image_url`,
@@ -21,6 +21,7 @@ INSERT INTO `recipes` (
   `updated_at`
 ) VALUES (
   'seed-roast-tomato-pasta',
+  (SELECT `id` FROM `user` ORDER BY `created_at` LIMIT 1),
   'Roast Tomato Pantry Pasta',
   'A reliable weeknight pasta built from cherry tomatoes, garlic, and a little reserved pasta water.',
   'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?auto=format&fit=crop&w=900&q=80',
@@ -36,7 +37,7 @@ INSERT INTO `recipes` (
   '2026-01-01T00:00:00.000Z',
   '2026-01-01T00:00:00.000Z'
 )
-ON CONFLICT(`id`) DO UPDATE SET
+ON CONFLICT(`user_id`, `id`) DO UPDATE SET
   `title` = excluded.`title`,
   `description` = excluded.`description`,
   `image_url` = excluded.`image_url`,
@@ -53,6 +54,7 @@ ON CONFLICT(`id`) DO UPDATE SET
 
 INSERT INTO `recipes` (
   `id`,
+  `user_id`,
   `title`,
   `description`,
   `image_url`,
@@ -69,6 +71,7 @@ INSERT INTO `recipes` (
   `updated_at`
 ) VALUES (
   'seed-ginger-miso-salmon',
+  (SELECT `id` FROM `user` ORDER BY `created_at` LIMIT 1),
   'Ginger Miso Salmon Bowls',
   'A quick bowl format for rice, greens, and glazed salmon with sharp pickles.',
   'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=900&q=80',
@@ -84,7 +87,7 @@ INSERT INTO `recipes` (
   '2026-01-01T00:00:00.000Z',
   '2026-01-01T00:00:00.000Z'
 )
-ON CONFLICT(`id`) DO UPDATE SET
+ON CONFLICT(`user_id`, `id`) DO UPDATE SET
   `title` = excluded.`title`,
   `description` = excluded.`description`,
   `image_url` = excluded.`image_url`,

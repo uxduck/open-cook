@@ -19,6 +19,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     db,
     env: c.env,
     executionCtx: c.executionCtx,
+    requestOrigin: c.req.header("Origin"),
     requestUrl: c.req.url,
   });
 
@@ -43,8 +44,10 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   }
 
   try {
+    const shouldBypassCookieCache = c.req.path === "/api/me";
     const authSession = await auth.api.getSession({
       headers: c.req.raw.headers,
+      query: shouldBypassCookieCache ? { disableCookieCache: true } : undefined,
     });
 
     if (authSession) {

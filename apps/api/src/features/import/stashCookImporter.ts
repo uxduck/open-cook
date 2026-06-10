@@ -82,7 +82,11 @@ export async function importStashCookRecipes(
     }),
   );
 
-  return detailedRows.map(mapStashCookRecipe);
+  return mapStashCookRows(detailedRows);
+}
+
+export function mapStashCookRows(rows: unknown[]): Recipe[] {
+  return rows.filter(isObjectRecord).map(mapStashCookRecipe);
 }
 
 function buildStashCookHeaders(input: StashCookImportInput): Record<string, string> {

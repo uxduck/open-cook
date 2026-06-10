@@ -1,0 +1,25 @@
+{
+  "name": "open-cook",
+  "version": "0.1.0",
+  "description": "Codex tools for reading, creating, and editing OpenCook recipes.",
+  "author": {
+    "name": "OpenCook"
+  },
+  "keywords": ["recipes", "cooking", "mcp", "codex"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "OpenCook",
+    "shortDescription": "Ask Codex to find, add, and revise recipes.",
+    "longDescription": "OpenCook connects Codex to the local recipe API so it can search your recipes, add recipes extracted from images or text, and safely draft or apply recipe edits.",
+    "developerName": "OpenCook",
+    "category": "Productivity",
+    "capabilities": ["MCP", "Read", "Write"],
+    "defaultPrompt": [
+      "Show me my dinner recipes.",
+      "Add this recipe from the image.",
+      "Rework this recipe for a weeknight."
+    ],
+    "brandColor": "#2F7D5F"
+  },
+  "mcpServers": "./.mcp.json"
+}

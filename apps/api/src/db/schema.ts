@@ -1,6 +1,13 @@
 import type { Recipe } from "@open-cook/core";
-import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { relations, sql } from "drizzle-orm";
+import {
+  foreignKey,
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
 const timestampMsDefault = sql`(unixepoch() * 1000)`;
 
@@ -8,6 +15,12 @@ export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  // Canonical form of `email` for abuse-prevention uniqueness checks. Gmail
+  // dots and `+` aliases are collapsed so `user+1@gmail.com` and
+  // `u.ser@gmail.com` map to the same value and cannot create separate
+  // accounts. NOT NULL + UNIQUE so any signup path that bypasses
+  // normalizeEmail() fails loudly instead of silently splitting identities.
+  normalizedEmail: text("normalized_email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -17,6 +30,8 @@ export const user = sqliteTable("user", {
   twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" })
     .notNull()
     .default(false),
+  plan: text("plan").notNull().default("free"),
+  paidCustomerId: text("paid_customer_id"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(timestampMsDefault),
@@ -138,18 +153,60 @@ export const twoFactor = sqliteTable(
   ],
 );
 
+export const userRelations = relations(user, ({ many }) => ({
+  accounts: many(account),
+  passkeys: many(passkey),
+  sessions: many(session),
+  twoFactors: many(twoFactor),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const passkeyRelations = relations(passkey, ({ one }) => ({
+  user: one(user, {
+    fields: [passkey.userId],
+    references: [user.id],
+  }),
+}));
+
+export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
+  user: one(user, {
+    fields: [twoFactor.userId],
+    references: [user.id],
+  }),
+}));
+
 export const recipes = sqliteTable(
   "recipes",
   {
-    id: text("id").primaryKey(),
+    id: text("id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
     imageUrl: text("image_url"),
+    images: text("images_json", { mode: "json" }).$type<Recipe["images"]>(),
     source: text("source_json", { mode: "json" }).$type<Recipe["source"]>(),
     prepTimeMinutes: integer("prep_time_minutes"),
     cookTimeMinutes: integer("cook_time_minutes"),
     totalTimeMinutes: integer("total_time_minutes"),
     servings: text("servings"),
+    visibility: text("visibility", { enum: ["private", "unlisted", "public"] })
+      .notNull()
+      .default("private"),
     tags: text("tags_json", { mode: "json" }).$type<string[]>().notNull(),
     ingredients: text("ingredients_json", { mode: "json" })
       .$type<Recipe["ingredients"]>()
@@ -160,8 +217,91 @@ export const recipes = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
-    index("recipes_title_idx").on(table.title),
-    index("recipes_updated_at_idx").on(table.updatedAt),
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("recipes_user_id_idx").on(table.userId),
+    index("recipes_user_title_idx").on(table.userId, table.title),
+    index("recipes_user_updated_at_idx").on(table.userId, table.updatedAt),
+    index("recipes_visibility_idx").on(table.visibility),
+  ],
+);
+
+export const recipesRelations = relations(recipes, ({ one }) => ({
+  user: one(user, {
+    fields: [recipes.userId],
+    references: [user.id],
+  }),
+}));
+
+export const recipeShares = sqliteTable(
+  "recipe_shares",
+  {
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    recipeId: text("recipe_id").notNull(),
+    sharedWithUserId: text("shared_with_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").notNull(),
+    seenAt: text("seen_at"),
+    dismissedAt: text("dismissed_at"),
+    copiedRecipeId: text("copied_recipe_id"),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.ownerId, table.recipeId, table.sharedWithUserId],
+    }),
+    foreignKey({
+      columns: [table.ownerId, table.recipeId],
+      foreignColumns: [recipes.userId, recipes.id],
+    }).onDelete("cascade"),
+    index("recipe_shares_shared_with_idx").on(table.sharedWithUserId),
+    index("recipe_shares_owner_recipe_idx").on(table.ownerId, table.recipeId),
+    index("recipe_shares_inbox_idx").on(
+      table.sharedWithUserId,
+      table.dismissedAt,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const recipeSharesRelations = relations(recipeShares, ({ one }) => ({
+  owner: one(user, {
+    fields: [recipeShares.ownerId],
+    references: [user.id],
+  }),
+  sharedWithUser: one(user, {
+    fields: [recipeShares.sharedWithUserId],
+    references: [user.id],
+  }),
+}));
+
+export const recipeCookProgress = sqliteTable(
+  "recipe_cook_progress",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    recipeUserId: text("recipe_user_id").notNull(),
+    recipeId: text("recipe_id").notNull(),
+    checkedIngredientIds: text("checked_ingredient_ids_json", {
+      mode: "json",
+    })
+      .$type<string[]>()
+      .notNull(),
+    checkedStepIds: text("checked_step_ids_json", { mode: "json" })
+      .$type<string[]>()
+      .notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.recipeUserId, table.recipeId] }),
+    foreignKey({
+      columns: [table.recipeUserId, table.recipeId],
+      foreignColumns: [recipes.userId, recipes.id],
+    }).onDelete("cascade"),
+    index("recipe_cook_progress_user_idx").on(table.userId, table.updatedAt),
+    index("recipe_cook_progress_recipe_idx").on(table.recipeUserId, table.recipeId),
   ],
 );
 
@@ -178,3 +318,4 @@ export const stashcookRawExports = sqliteTable(
 
 export type RecipeRow = typeof recipes.$inferSelect;
 export type NewRecipeRow = typeof recipes.$inferInsert;
+export type RecipeCookProgressRow = typeof recipeCookProgress.$inferSelect;
