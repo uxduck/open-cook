@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Copy, Link2, LogIn } from "lucide-react";
+import { ChefHat, Copy, Link2, LogIn } from "lucide-react";
 import { useState } from "react";
 import { api } from "../api";
 import { ReadOnlyRecipeContent } from "../components/recipeViews";
@@ -85,10 +85,24 @@ function RecipeLinkRoute() {
           {status ? <p className="inline-status">{status}</p> : null}
         </section>
       ) : (
-        <section className="detail-panel browse-panel">
-          <p className="col-span-full self-start rounded-lg border-2 border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-[13px] text-[var(--muted-foreground)]">
-            This recipe link doesn't exist or is no longer shared.
-          </p>
+        <section className="flex min-h-[60vh] items-center justify-center px-5 py-16">
+          <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) px-6 py-14 text-center shadow-[5px_5px_0_0_var(--color-ink)]">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-(--color-ink) bg-(--color-soft) text-(--color-fog)">
+              <ChefHat size={24} />
+            </span>
+            <strong className="text-lg text-(--color-ink)">Recipe not found</strong>
+            <p className="max-w-sm text-[14px] leading-snug text-(--color-fog)">
+              This share link doesn't exist anymore, or the owner has stopped
+              sharing it.
+            </p>
+            <Button
+              onClick={() => navigate({ to: session ? "/app" : "/" })}
+              size="sm"
+              variant="secondary"
+            >
+              {session ? "Go to your recipes" : "Explore OpenCook"}
+            </Button>
+          </div>
         </section>
       )}
     </main>

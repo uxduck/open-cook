@@ -75,14 +75,14 @@
         "staging.open-cook.com/docs*",
         "staging.open-cook.com/scalar*",
       ],
-      // Staging uses the Paid TEST org. PAID_API_KEY / PAID_WEBHOOK_SECRET /
-      // PAID_ORGANIZATION_ID via `wrangler secret put ... --env staging`.
+      // PAID_API_KEY / PAID_WEBHOOK_SECRET / PAID_ORGANIZATION_ID via
+      // `wrangler secret put ... --env staging`.
       "vars": {
         "ASSETS_PUBLIC_BASE_URL": "https://images.open-cook.com",
-        "PAID_PRODUCT_EXTERNAL_ID": "<test-opencook-product-external-id>",
-        "PAID_PRODUCT_PRO_ID": "<test-pro-product-id>",
-        "PAID_PRODUCT_CREDITS_5_ID": "<test-credits-5-product-id>",
-        "PAID_PRODUCT_CREDITS_10_ID": "<test-credits-10-product-id>",
+        "PAID_PRODUCT_EXTERNAL_ID": "opencook",
+        "PAID_PRODUCT_PRO_ID": "prod_5nyuokMoLLw",
+        "PAID_PRODUCT_CREDITS_5_ID": "prod_5nyuokyojcT",
+        "PAID_PRODUCT_CREDITS_10_ID": "prod_5nyuomc91CK",
       },
       "ai": {
         "binding": "AI",
