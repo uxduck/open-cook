@@ -33,6 +33,7 @@ import {
   optionalNumber,
   optionalQuantity,
   recipeImagesOf,
+  recipeShareLinkState,
   visibilityPillClass,
 } from "../lib/recipe";
 import {
@@ -265,16 +266,13 @@ export function SharingSection({
   const visibility = draft.visibility ?? "private";
   const savedVisibility = persistedVisibility ?? "private";
   const recipeId = draft.id && !draft.id.startsWith("demo-") ? draft.id : "";
-  const hasUnsavedVisibility = Boolean(recipeId && visibility !== savedVisibility);
-  const candidateShareLink =
-    recipeId && ownerUserId && visibility !== "private" && typeof window !== "undefined"
-      ? `${window.location.origin}/r/${ownerUserId}/${recipeId}`
-      : "";
-  const shareLink =
-    candidateShareLink && savedVisibility !== "private" && !hasUnsavedVisibility
-      ? candidateShareLink
-      : "";
-  const visibleShareLink = shareLink || candidateShareLink;
+  const { hasUnsavedVisibility, shareLink } = recipeShareLinkState({
+    origin: typeof window !== "undefined" ? window.location.origin : undefined,
+    ownerUserId,
+    persistedVisibility: savedVisibility,
+    recipeId,
+    visibility,
+  });
   const [shares, setShares] = useState<RecipeShare[]>([]);
   const [identifier, setIdentifier] = useState("");
   const [shareStatus, setShareStatus] = useState("");
@@ -398,25 +396,24 @@ export function SharingSection({
         <>
           {hasUnsavedVisibility ? (
             <div className="rounded-lg border-2 border-dashed border-[var(--border)] bg-[color-mix(in_oklch,var(--accent)_16%,white)] px-2.5 py-2 text-[12.5px] font-bold text-[var(--muted-foreground)]">
-              Save this recipe to apply the {visibility} visibility before using a link.
+              Saving {visibility} visibility before the link can be used.
             </div>
           ) : null}
-          {visibleShareLink ? (
+          {shareLink ? (
             <div className="flex items-center gap-2 rounded-lg border-2 border-dashed border-[var(--border)] bg-[color-mix(in_oklch,var(--secondary)_12%,white)] px-2.5 py-1.5">
               <span
                 className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--muted-foreground)]"
-                title={visibleShareLink}
+                title={shareLink}
               >
-                {visibleShareLink}
+                {shareLink}
               </span>
               <Button
                 className="shrink-0"
-                disabled={!shareLink}
                 onClick={() => void copyShareLink()}
                 size="sm"
               >
                 <Clipboard size={14} />
-                {shareLink ? "Copy link" : "Copy after save"}
+                Copy link
               </Button>
             </div>
           ) : null}
@@ -710,6 +707,18 @@ export function StructuredIngredientsEditor({
                     </span>
                   ) : null}
                 </div>
+                <input
+                  className={`${ingCellClassName} col-span-full text-xs`}
+                  aria-label={`Ingredient ${index + 1} note`}
+                  onChange={(event) =>
+                    updateIngredient(index, {
+                      ...ingredient,
+                      note: event.target.value || undefined,
+                    })
+                  }
+                  placeholder="Note. Optional detail from the source"
+                  value={ingredient.note ?? ""}
+                />
                 {ingredient.warnings?.length ? (
                   <span className="col-span-full text-[11px] font-[760] leading-[1.25] text-[#9f6130]">
                     {ingredient.warnings[0]}

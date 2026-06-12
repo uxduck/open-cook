@@ -1,5 +1,5 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
-import { env } from "cloudflare:workers";
+import { isConfiguredApiOrigin, proxyApiRequest } from "./server/apiProxy";
 
 const API_PREFIXES = ["/api", "/docs", "/scalar"];
 const localApiUnavailableBody = JSON.stringify({
@@ -29,13 +29,18 @@ export default createServerEntry({
   async fetch(request) {
     const url = new URL(request.url);
     if (isApiRequest(url.pathname)) {
-      if (env.API) {
-        return env.API.fetch(request);
-      }
-      const devUrl = `http://127.0.0.1:8787${url.pathname}${url.search}`;
       try {
-        return await fetch(new Request(devUrl, request));
+        return await proxyApiRequest(request);
       } catch {
+        if (isConfiguredApiOrigin()) {
+          return new Response(
+            JSON.stringify({ error: "Configured API origin is unavailable." }),
+            {
+              headers: { "content-type": "application/json; charset=utf-8" },
+              status: 503,
+            },
+          );
+        }
         return localApiUnavailableResponse();
       }
     }

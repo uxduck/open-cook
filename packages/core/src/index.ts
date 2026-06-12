@@ -1,4 +1,5 @@
 export * from "./foodPreferences";
+export * from "./gathering";
 export * from "./markdown";
 export * from "./recipe";
 export * from "./recipeAi";

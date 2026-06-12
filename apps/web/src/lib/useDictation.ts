@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api";
 
 export type DictationStatus = "idle" | "connecting" | "listening" | "error";
 
-/** Browser-side speech-to-text over Deepgram's streaming WebSocket.
+/** Browser-side speech-to-text through our Deepgram streaming WebSocket proxy.
  *
- * Flow: mint a short-lived key from our Worker, open getUserMedia + a
- * MediaRecorder, and pipe audio chunks straight to Deepgram. Final transcripts
- * are appended to `committed`; the in-progress phrase is exposed as `interim`.
+ * Flow: open getUserMedia + a MediaRecorder, then pipe audio chunks through our
+ * Worker to Deepgram. Final transcripts are appended to `committed`; the
+ * in-progress phrase is exposed as `interim`.
  *
  * There is deliberately NO automatic end-of-speech stop — Deepgram's
  * `speech_final` is ignored. The session only ends when the caller invokes
@@ -40,11 +39,13 @@ export function useDictation() {
     streamRef.current = null;
     const ws = wsRef.current;
     wsRef.current = null;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      try {
-        ws.send(JSON.stringify({ type: "CloseStream" }));
-      } catch {
-        // Best-effort flush; closing below regardless.
+    if (ws && ws.readyState !== WebSocket.CLOSED) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: "CloseStream" }));
+        } catch {
+          // Best-effort flush; closing below regardless.
+        }
       }
       ws.close();
     }
@@ -74,15 +75,6 @@ export function useDictation() {
     setInterim("");
     setStatus("connecting");
 
-    let token: { token: string };
-    try {
-      token = await api.voiceToken();
-    } catch {
-      setError("Voice dictation isn't available right now.");
-      setStatus("error");
-      return;
-    }
-
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -93,18 +85,7 @@ export function useDictation() {
     }
     streamRef.current = stream;
 
-    const params = new URLSearchParams({
-      model: "nova-3",
-      smart_format: "true",
-      interim_results: "true",
-      punctuate: "true",
-    });
-    // Browsers can't set an Authorization header on a WebSocket, so the JWT
-    // rides in the Sec-WebSocket-Protocol subprotocol as ["bearer", <jwt>].
-    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
-      "bearer",
-      token.token,
-    ]);
+    const ws = new WebSocket(voiceProxyUrl());
     wsRef.current = ws;
 
     ws.addEventListener("open", () => {
@@ -163,6 +144,12 @@ export function useDictation() {
     stop,
     reset,
   };
+}
+
+function voiceProxyUrl() {
+  const url = new URL("/api/ai/voice/listen", window.location.href);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 type DeepgramMessage = {

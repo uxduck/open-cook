@@ -28,12 +28,14 @@ API with OpenAPI docs at `/openapi.json`, so your data is never locked in and
 agents like Codex can build on top of it. You can add meal plans, shopping
 lists, cookbook exports, or a custom UI for your family.
 
-The current target is a Cloudflare Workers demo:
+The hosted demo shape is a Vercel web app backed by a Cloudflare Worker API:
 
+- Vercel-hosted TanStack Start web app, built with Nitro
 - Hono API with OpenAPI at `/openapi.json`, Swagger UI at `/docs`, and Scalar at
   `/scalar`
-- Cloudflare D1 storage through Drizzle ORM
-- Cloudflare R2 image storage for public recipe photos
+- Cloudflare Worker backend for API, auth, data, image, and AI endpoints
+- D1 storage through Drizzle ORM
+- R2 image storage for public recipe photos
 - Replaceable storage adapter contract for future D1/Postgres/SQLite variants
 - Open recipe format in JSON with Markdown import/export
 - StashCook importer that uses credentials copied from your own browser session
@@ -59,11 +61,23 @@ Then open:
 - API docs: `http://localhost:8787/scalar`
 - Web app: `http://localhost:5173`
 
-For remote deploys, create a D1 database and an R2 bucket, then replace the
-placeholder `database_id` in `apps/api/wrangler.jsonc`. The production and
-staging Worker environments set `ASSETS_PUBLIC_BASE_URL` to
-`https://images.open-cook.com`, so copied recipe images are stored as stable URLs
-on the public R2 custom domain:
+## Deploy
+
+The preferred hosted web target is Vercel. Create the Vercel project from
+`apps/web` and use:
+
+- Build command: `pnpm run build:vercel`
+- Environment variable: `OPEN_COOK_API_ORIGIN=https://open-cook.com`
+
+The Vercel server proxies `/api/*`, `/openapi.json`, `/docs`, and `/scalar` to
+that API origin, so the browser keeps same-origin auth and API calls while the
+backend stays on the Worker.
+
+For the backend, deploy the API Worker separately. Create a D1 database and an
+R2 bucket, then replace the placeholder `database_id` in
+`apps/api/wrangler.jsonc`. The production and staging Worker environments set
+`ASSETS_PUBLIC_BASE_URL` to `https://images.open-cook.com`, so copied recipe
+images are stored as stable URLs on the public R2 custom domain:
 
 ```bash
 pnpm --filter @open-cook/api exec wrangler d1 create open-cook
@@ -74,6 +88,13 @@ pnpm --filter @open-cook/api db:migrate:remote
 pnpm --filter @open-cook/api deploy
 ```
 
+After Vercel assigns a production URL, set the API Worker auth environment to
+trust that web origin:
+
+- `WEBSITE_URL=https://<vercel-production-origin>`
+- `BETTER_AUTH_URL=https://<vercel-production-origin>`
+- `AUTH_TRUSTED_ORIGINS=https://<vercel-production-origin>`
+
 Recipe images are stored in R2 under public URLs. There is no signed URL flow:
 food images are served through the public R2 custom domain at
 `https://images.open-cook.com`. The Worker route `/api/assets/images/:key`
@@ -82,10 +103,11 @@ remains available for local development and fallback reads. Local dev leaves
 Keep the R2 public development URL disabled for production.
 
 Authentication uses Better Auth with the same D1 binding as recipe storage. Set
-`AUTH_SECRET` or `BETTER_AUTH_SECRET` for deployed environments, and set
-`AUTH_BASE_URL` or `BETTER_AUTH_URL` to the Worker origin. Browser clients should
-be listed in `AUTH_TRUSTED_ORIGINS` as comma-separated origins; `WEBSITE_URL` is
-also trusted when set. Passkeys default to the auth origin hostname unless
+`AUTH_SECRET` or `BETTER_AUTH_SECRET` for deployed environments. For the
+Vercel-hosted web app, set `WEBSITE_URL` and `BETTER_AUTH_URL` or
+`AUTH_BASE_URL` to the Vercel web origin, and include that origin in
+`AUTH_TRUSTED_ORIGINS`. If you expose the API directly without the Vercel proxy,
+use that API origin instead. Passkeys default to the auth origin hostname unless
 `AUTH_PASSKEY_RP_ID` is configured.
 
 Email delivery uses Resend when `RESEND_API_KEY` is available in the Worker
@@ -167,7 +189,8 @@ Core endpoints:
 
 The intended demo loop is:
 
-1. Run OpenCook locally or deploy it to Cloudflare Workers.
+1. Run OpenCook locally or use the hosted Vercel web app backed by the API
+   Worker.
 2. Ask Codex to inspect `http://localhost:8787/openapi.json`.
 3. Ask Codex to call the API to add, edit, import, or export recipes.
 4. Ask Codex to build a new workflow on top of your recipe data, such as a meal

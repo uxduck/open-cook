@@ -13,7 +13,17 @@ export const xProfileUrl = "https://x.com/uxduck";
 export const marketingSocialLinkClass =
   "inline-flex h-8 w-8 items-center justify-center text-(--foreground) opacity-75 transition hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--primary)";
 
-export type Page = "recipes" | "api" | "export" | "build" | "settings";
+export type Page =
+  | "recipes"
+  | "gatherings"
+  | "gathering"
+  | "gathering-generating"
+  | "api"
+  | "billing"
+  | "export"
+  | "preferences"
+  | "build"
+  | "settings";
 export type AppRoute =
   | "home"
   | "app"
@@ -56,6 +66,38 @@ export const emptyRecipe: Recipe = {
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
+export function recipeShareLinkState({
+  origin,
+  ownerUserId,
+  persistedVisibility,
+  recipeId,
+  visibility,
+}: {
+  origin?: string;
+  ownerUserId?: string | null;
+  persistedVisibility?: Recipe["visibility"];
+  recipeId?: string;
+  visibility?: Recipe["visibility"];
+}) {
+  const shareableRecipeId =
+    recipeId && !recipeId.startsWith("demo-") ? recipeId : "";
+  const selectedVisibility = visibility ?? "private";
+  const savedVisibility = persistedVisibility ?? "private";
+  const hasUnsavedVisibility = Boolean(
+    shareableRecipeId && selectedVisibility !== savedVisibility,
+  );
+  const shareLink =
+    shareableRecipeId &&
+    ownerUserId &&
+    origin &&
+    savedVisibility !== "private" &&
+    !hasUnsavedVisibility
+      ? `${origin}/r/${ownerUserId}/${shareableRecipeId}`
+      : "";
+
+  return { hasUnsavedVisibility, shareLink };
+}
+
 // The subset of a recipe that auto-save persists. Visibility is intentionally
 // saved through the explicit sharing controls so stale autosaves cannot undo it.
 export function recipeAutoSavePayload(recipe: Recipe) {
@@ -86,6 +128,21 @@ export function recipeImagesOf(
     return recipe.images;
   }
   return recipe.imageUrl ? [{ url: recipe.imageUrl }] : [];
+}
+
+export function ingredientDisplayNote(ingredient: RecipeIngredient) {
+  const note = ingredient.note?.trim();
+  if (!note) {
+    return undefined;
+  }
+
+  const normalizedNote = note.toLowerCase();
+  const visibleText = [ingredient.text, ingredient.item, ingredient.preparation]
+    .filter((value): value is string => Boolean(value))
+    .join(" ")
+    .toLowerCase();
+
+  return visibleText.includes(normalizedNote) ? undefined : note;
 }
 
 export const demoRecipes: Recipe[] = [

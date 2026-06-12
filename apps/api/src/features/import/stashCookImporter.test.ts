@@ -14,7 +14,12 @@ describe("mapStashCookRows", () => {
         servings: "2",
         tags: [{ name: "Dinner" }, { name: "Pasta" }],
         ingredients2: [
-          { amount: "200", unit: "g", productName: "spaghetti" },
+          {
+            amount: "200",
+            unit: "g",
+            productName: "spaghetti",
+            comments: ["al dente shape"],
+          },
           { amount: "1", productName: "lemon" },
         ],
         method: [{ text: "Boil the pasta." }, { text: "Toss with lemon." }],
@@ -33,7 +38,10 @@ describe("mapStashCookRows", () => {
       cookTimeMinutes: 15,
       servings: "2",
       tags: ["Dinner", "Pasta"],
-      ingredients: [{ text: "200 g spaghetti" }, { text: "1 lemon" }],
+      ingredients: [
+        { text: "200 g spaghetti", note: "al dente shape" },
+        { text: "1 lemon" },
+      ],
       steps: [{ text: "Boil the pasta." }, { text: "Toss with lemon." }],
       notes: ["Serve immediately."],
       source: {

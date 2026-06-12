@@ -227,7 +227,9 @@ function stringsFromUnknown(value: unknown): string[] {
   return [];
 }
 
-function toTextRows(value: unknown): { section?: string; text: string }[] {
+function toTextRows(
+  value: unknown,
+): { section?: string; text: string; note?: string }[] {
   if (!value) {
     return [];
   }
@@ -251,12 +253,17 @@ function toTextRows(value: unknown): { section?: string; text: string }[] {
         return undefined;
       }
       const section = firstString(item, ["section", "heading", "group"]);
+      const note = stringsFromUnknown(
+        firstValue(item, ["comments", "comment", "note"]),
+      ).join(", ");
       const text =
         firstString(item, ["text", "description", "instruction", "name"]) ??
         ingredientObjectToText(item);
-      return text ? { section, text } : undefined;
+      return text ? { section, text, note: note || undefined } : undefined;
     })
-    .filter((item): item is { section?: string; text: string } => Boolean(item));
+    .filter((item): item is { section?: string; text: string; note?: string } =>
+      Boolean(item),
+    );
 }
 
 function ingredientObjectToText(item: Record<string, unknown>) {

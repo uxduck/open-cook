@@ -244,16 +244,25 @@ export function parseStepLine(
   });
 }
 
-export function ingredientDisplayText(ingredient: RecipeIngredient, scale = 1) {
+export function ingredientDisplayText(
+  ingredient: RecipeIngredient,
+  scale = 1,
+  options: { includeNote?: boolean } = {},
+) {
   const quantity = scaledQuantity(ingredient.quantity, scale);
   const parts = [
     quantity,
     ingredient.item?.trim(),
     ingredient.preparation ? `, ${ingredient.preparation.trim()}` : "",
-    ingredient.note ? ` (${ingredient.note.trim()})` : "",
   ].filter(Boolean);
+  const baseText = parts.length
+    ? parts.join(" ").replace(/\s+,/g, ",")
+    : ingredient.text;
+  const includeNote = options.includeNote ?? true;
 
-  return parts.length ? parts.join(" ").replace(/\s+,/g, ",") : ingredient.text;
+  return includeNote && ingredient.note?.trim()
+    ? `${baseText} (${ingredient.note.trim()})`
+    : baseText;
 }
 
 export function ingredientBaseText(ingredient: RecipeIngredient) {

@@ -61,7 +61,12 @@ function PricingPage() {
         actions={
           session ? (
             <>
-              <Button size="sm" onClick={() => navigate({ to: "/account" })}>
+              <Button
+                size="sm"
+                onClick={() =>
+                  navigate({ search: { page: "billing" }, to: "/app" })
+                }
+              >
                 Account
               </Button>
               <Button

@@ -4,6 +4,7 @@ import {
   Braces,
   CheckCircle2,
   Clipboard,
+  CreditCard,
   Database,
   Download,
   ExternalLink,
@@ -26,6 +27,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
   UploadCloud,
   UserPlus,
   UserRound,
@@ -35,6 +37,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   type AgentManifest,
   type ApiInfo,
+  type BillingSummary,
   api,
   type OpenApiDocument,
   type ShoppingListResult,
@@ -570,6 +573,203 @@ export function ExportPage({
   );
 }
 
+export function BillingPage({
+  onCreateAccount,
+  onGoToPricing,
+  onLogIn,
+  session,
+  sessionLoading,
+}: {
+  onCreateAccount: () => void;
+  onGoToPricing: () => void;
+  onLogIn: () => void;
+  session: CurrentAuthSession | null;
+  sessionLoading: boolean;
+}) {
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [portalPending, setPortalPending] = useState(false);
+
+  useEffect(() => {
+    if (sessionLoading) {
+      return undefined;
+    }
+
+    if (!session) {
+      setBilling(null);
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api
+      .billingSummary()
+      .then((summary) => {
+        if (!cancelled) {
+          setBilling(summary);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load billing.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, sessionLoading]);
+
+  const openPortal = useCallback(async () => {
+    setError(null);
+    setPortalPending(true);
+    try {
+      const { url } = await api.openBillingPortal();
+      window.location.href = url;
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Couldn't open the billing portal.",
+      );
+      setPortalPending(false);
+    }
+  }, []);
+
+  const plan = billing?.plan ?? session?.user.plan ?? "free";
+  const isPro = plan === "pro";
+  const totalCredits = (billing?.balances ?? []).reduce(
+    (sum, pool) => sum + pool.available,
+    0,
+  );
+
+  return (
+    <section className={workspacePageClassName}>
+      <WorkspaceHeader
+        description="Review your plan, credit balance, and billing portal access without leaving the OpenCook app."
+        icon={<CreditCard size={25} />}
+        title="Billing"
+      >
+        <span
+          className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-solid px-[11px] py-2 text-[13px] font-[760] ${
+            session
+              ? "border-(--color-sage-line) bg-(--color-sage-soft) text-(--color-sage)"
+              : "border-[#ead0b6] bg-[#fff8ed] text-[#8a4d2a]"
+          }`}
+        >
+          <UserRound size={16} />
+          {sessionLoading
+            ? "Checking account"
+            : session
+              ? session.user.email
+              : "Not signed in"}
+        </span>
+      </WorkspaceHeader>
+
+      <div className="mt-[18px] grid max-w-[920px] gap-3.5">
+        {!session ? (
+          <section className={workspacePanelClassName}>
+            <div className={panelTitleClassName}>
+              <UserRound size={18} />
+              <strong>Account required</strong>
+            </div>
+            <p className="m-0 max-w-[60ch] text-sm leading-6 text-(--color-fog)">
+              Sign in to view your plan, manage billing, or buy OpenCook credits.
+            </p>
+            <div className={buttonRowClassName}>
+              <Button onClick={onLogIn} size="sm">
+                <LogIn size={16} />
+                Log in
+              </Button>
+              <Button onClick={onCreateAccount} size="sm" variant="primary">
+                <UserPlus size={16} />
+                Create account
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
+        {error ? (
+          <p className="m-0 rounded-lg border-2 border-(--destructive) bg-(--color-panel) px-4 py-3 text-sm font-bold text-(--destructive)">
+            {error}
+          </p>
+        ) : null}
+
+        {session ? (
+          <section className={workspacePanelClassName}>
+            <div className={panelTitleClassName}>
+              <CreditCard size={18} />
+              <strong>Plan and credits</strong>
+            </div>
+
+            {loading ? (
+              <p className="m-0 flex items-center gap-2 text-sm font-bold text-(--color-fog)">
+                <Loader2 size={16} className="animate-spin" />
+                Loading billing
+              </p>
+            ) : (
+              <div className="grid gap-5">
+                <div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
+                  <MetricCard
+                    detail={isPro ? "Chef subscription" : "Free OpenCook plan"}
+                    icon={<CreditCard size={20} />}
+                    label="Current plan"
+                    value={isPro ? "Chef" : "Free"}
+                  />
+                  <MetricCard
+                    detail="Available for AI recipe actions"
+                    icon={<Sparkles size={20} />}
+                    label="Credit balance"
+                    value={`${totalCredits.toLocaleString()} credits`}
+                  />
+                </div>
+
+                {billing && !billing.billingEnabled ? (
+                  <p className="m-0 rounded-lg border border-solid border-(--color-line) bg-[rgba(255,253,248,0.72)] px-3 py-2.5 text-sm font-bold text-(--color-fog)">
+                    Billing isn't configured in this environment yet.
+                  </p>
+                ) : null}
+
+                <div className="flex flex-wrap gap-2">
+                  {isPro ? (
+                    <Button
+                      disabled={portalPending}
+                      onClick={() => void openPortal()}
+                      size="sm"
+                      variant="primary"
+                    >
+                      {portalPending ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <ExternalLink size={16} />
+                      )}
+                      {portalPending ? "Opening" : "Manage billing"}
+                    </Button>
+                  ) : (
+                    <Button onClick={onGoToPricing} size="sm" variant="primary">
+                      <Sparkles size={16} />
+                      Upgrade to Chef
+                    </Button>
+                  )}
+                  <Button onClick={onGoToPricing} size="sm">
+                    Buy credits
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function AccountNameForm({
   onRefreshSession,
   session,
@@ -643,6 +843,7 @@ export function SettingsPage({
   message,
   onCreateAccount,
   onGoToPage,
+  onOpenOnboarding,
   onLogIn,
   onMirrorImages,
   onRefreshRecipes,
@@ -655,6 +856,7 @@ export function SettingsPage({
   message: string;
   onCreateAccount: () => void;
   onGoToPage: (page: Page) => void;
+  onOpenOnboarding: () => void;
   onLogIn: () => void;
   onMirrorImages: () => Promise<void>;
   onRefreshRecipes: () => Promise<void>;
@@ -739,6 +941,18 @@ export function SettingsPage({
           {session ? (
             <AccountNameForm onRefreshSession={onRefreshSession} session={session} />
           ) : null}
+
+          <button
+            className={settingsOptionClassName}
+            onClick={onOpenOnboarding}
+            type="button"
+          >
+            <ListChecks size={18} />
+            <span>
+              <strong>Food preferences</strong>
+              <small>Edit diets, allergies, cuisines, spice, time, and equipment.</small>
+            </span>
+          </button>
 
           <div className="flex flex-wrap items-center gap-2">
             {session ? (

@@ -1,4 +1,5 @@
 import {
+  type Gathering,
   ingredientDisplayText,
   parseRecipeYield,
   type Recipe,
@@ -14,6 +15,7 @@ import {
   ChefHat,
   Clock3,
   Download,
+  ExternalLink,
   Globe2,
   Image as ImageIcon,
   Link2,
@@ -24,6 +26,7 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
+  Search,
   Share2,
   Trash2,
   Users,
@@ -35,6 +38,7 @@ import { displayImageUrl } from "../imageDisplayUrl";
 import {
   emptyNoteClass,
   hasIngredientStructure,
+  ingredientDisplayNote,
   recipeImagesOf,
   type RecipeSection,
   type SaveState,
@@ -43,14 +47,25 @@ import {
 } from "../lib/recipe";
 import { Button } from "../ui";
 import { RecipeEditor, SharingSection } from "./editor";
-import { RecipeGenerationPanel } from "./recipeGenerator";
 import { RecipeSectionTabs, TopBar } from "./workspace";
 import { BrowseRecipeView } from "./recipeViews";
 
 const cardClassName =
-  "rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) shadow-[5px_5px_0_0_var(--color-ink)]";
+  "rounded-2xl border-2 border-(--color-ink) bg-[linear-gradient(180deg,#fffef9,#fff8ec)] shadow-[5px_5px_0_0_var(--color-ink)]";
 const skeletonItems = [0, 1, 2, 3, 4, 5];
 const skeletonBlockClassName = "block animate-pulse rounded-md bg-(--color-line)";
+const recipeRailClassName =
+  "flex items-center justify-between gap-3 rounded-2xl border-2 border-(--color-ink) bg-[linear-gradient(135deg,#fffdf8,#fff2c9_58%,#e7f0df)] p-2.5 shadow-[4px_4px_0_0_var(--color-ink)] max-[720px]:flex-col max-[720px]:items-start";
+const recipeRailActionsClassName =
+  "flex flex-wrap items-center justify-end gap-2 max-[720px]:w-full max-[720px]:justify-start";
+const recipeRailButtonClassName =
+  "rounded-xl! border-2! border-(--color-ink)! bg-(--color-panel)! px-3! py-2! text-[13px]! shadow-[2px_2px_0_0_var(--color-ink)]! hover:bg-[#fff4d7]! hover:shadow-[3px_3px_0_0_var(--color-ink)]!";
+const recipeRailPrimaryButtonClassName =
+  "rounded-xl! border-2! border-(--color-ink)! bg-(--color-tomato)! px-3! py-2! text-[13px]! text-white! shadow-[2px_2px_0_0_var(--color-ink)]! hover:bg-(--color-tomato-dark)! hover:shadow-[3px_3px_0_0_var(--color-ink)]!";
+const recipeRailIconButtonClassName =
+  "h-10! min-h-10! w-10! rounded-xl! border-2! border-(--color-ink)! bg-(--color-panel)! text-(--color-ink)! shadow-[2px_2px_0_0_var(--color-ink)]! hover:bg-[#fff4d7]! hover:shadow-[3px_3px_0_0_var(--color-ink)]!";
+const recipeRailSavePillClassName =
+  "inline-flex min-h-10 items-center gap-1.5 rounded-xl border-2 border-(--color-ink) bg-[#f9f1df] px-3 py-2 text-[12.5px] font-extrabold shadow-[2px_2px_0_0_var(--color-ink)]";
 
 // A full-bleed cover that fills its (positioned) parent, falling back to a chef
 // hat when there is no image or it fails to load.
@@ -129,6 +144,7 @@ export function RecipeActionsMenu({
       <Button
         aria-label="More actions"
         aria-expanded={open}
+        className={recipeRailIconButtonClassName}
         onClick={() => setOpen((value) => !value)}
         size="icon"
         variant="secondary"
@@ -238,6 +254,7 @@ function ShareMenu({
     <div className="relative" ref={containerRef}>
       <Button
         aria-expanded={open}
+        className={recipeRailButtonClassName}
         onClick={() => setOpen((value) => !value)}
         size="sm"
         variant="secondary"
@@ -262,11 +279,17 @@ function ShareMenu({
 
 function SaveIndicator({ saveState }: { saveState: SaveState }) {
   if (saveState === "saving") {
-    return <span className="text-[12.5px] font-bold text-(--color-fog)">Saving…</span>;
+    return (
+      <span className={`${recipeRailSavePillClassName} text-(--color-fog)`}>
+        Saving…
+      </span>
+    );
   }
   if (saveState === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-[12.5px] font-bold text-(--color-sage)">
+      <span
+        className={`${recipeRailSavePillClassName} bg-(--color-sage-soft) text-(--color-sage)`}
+      >
         <Check size={13} />
         Saved
       </span>
@@ -274,7 +297,11 @@ function SaveIndicator({ saveState }: { saveState: SaveState }) {
   }
   if (saveState === "error") {
     return (
-      <span className="text-[12.5px] font-bold text-(--color-tomato)">Save failed</span>
+      <span
+        className={`${recipeRailSavePillClassName} bg-[#fff0ec] text-(--color-tomato-dark)`}
+      >
+        Save failed
+      </span>
     );
   }
   return null;
@@ -640,6 +667,7 @@ export function RecipeReadView({ draft }: { draft: Recipe }) {
                 {ingredients.map((ingredient, index) => {
                   const key = recipeItemKey(ingredient, index);
                   const isChecked = checkedIngredientIds.has(key);
+                  const note = ingredientDisplayNote(ingredient);
                   return (
                     <li key={key}>
                       <button
@@ -657,14 +685,23 @@ export function RecipeReadView({ draft }: { draft: Recipe }) {
                         >
                           <Check size={12} strokeWidth={3} />
                         </span>
-                        <span
-                          className={`text-[14.5px] leading-snug ${
-                            isChecked
-                              ? "text-(--color-fog) line-through"
-                              : "text-(--color-ink)"
-                          }`}
-                        >
-                          {ingredientDisplayText(ingredient, scaleFactor)}
+                        <span className="grid min-w-0 gap-0.5">
+                          <span
+                            className={`text-[14.5px] leading-snug ${
+                              isChecked
+                                ? "text-(--color-fog) line-through"
+                                : "text-(--color-ink)"
+                            }`}
+                          >
+                            {ingredientDisplayText(ingredient, scaleFactor, {
+                              includeNote: false,
+                            })}
+                          </span>
+                          {note ? (
+                            <span className="text-[12.5px] leading-snug text-(--color-fog)">
+                              {note}
+                            </span>
+                          ) : null}
                         </span>
                       </button>
                     </li>
@@ -743,11 +780,203 @@ export function RecipeReadView({ draft }: { draft: Recipe }) {
 
 function FullWidthPage({ children }: { children: React.ReactNode }) {
   return (
-    <section className="col-[1/-1] overflow-auto bg-(--color-canvas)">
-      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-5 py-6 md:px-8">
+    <section className="relative col-[1/-1] overflow-auto bg-[radial-gradient(circle_at_16%_9%,rgba(255,196,86,0.18),transparent_18rem),radial-gradient(circle_at_88%_16%,rgba(47,104,75,0.12),transparent_20rem),linear-gradient(180deg,#fff8e7_0%,#f6f0e4_44%,#edf4e7_100%)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(color-mix(in_oklch,var(--color-line)_64%,transparent)_1px,transparent_1px)] before:[background-size:18px_18px] before:opacity-45">
+      <div className="relative z-10 mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-5 py-6 md:px-8">
         {children}
       </div>
     </section>
+  );
+}
+
+function RecipeGatheringMenu({
+  gatherings,
+  gatheringsLoading,
+  onCreateGathering,
+  onOpenGathering,
+  onToggleGathering,
+  recipe,
+}: {
+  gatherings: Gathering[];
+  gatheringsLoading: boolean;
+  onCreateGathering: (recipe: Recipe) => void | Promise<void>;
+  onOpenGathering: (gatheringId: string) => void;
+  onToggleGathering: (
+    gatheringId: string,
+    recipe: Recipe,
+    selected: boolean,
+  ) => void | Promise<void>;
+  recipe: Recipe;
+}) {
+  const [open, setOpen] = useState(false);
+  const [gatheringQuery, setGatheringQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const recipeId = recipe.id && !recipe.id.startsWith("demo-") ? recipe.id : "";
+  const containingGatherings = gatherings.filter((gathering) =>
+    recipeId ? gathering.recipeIds.includes(recipeId) : false,
+  );
+  const normalizedGatheringQuery = gatheringQuery.trim().toLowerCase();
+  const visibleGatherings = normalizedGatheringQuery
+    ? gatherings.filter((gathering) =>
+        `${gathering.title} ${gathering.status}`
+          .toLowerCase()
+          .includes(normalizedGatheringQuery),
+      )
+    : gatherings;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+        setGatheringQuery("");
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || gatheringsLoading || !gatherings.length) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [gatherings.length, gatheringsLoading, open]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <Button
+        aria-expanded={open}
+        className={
+          containingGatherings.length
+            ? recipeRailButtonClassName
+            : recipeRailPrimaryButtonClassName
+        }
+        disabled={!recipeId}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            setGatheringQuery("");
+            return;
+          }
+          setOpen(true);
+        }}
+        size="sm"
+        variant={containingGatherings.length ? "secondary" : "primary"}
+      >
+        <Users size={15} />
+        Gatherings
+        {containingGatherings.length ? ` (${containingGatherings.length})` : ""}
+      </Button>
+      {open ? (
+        <div className="absolute right-0 z-30 mt-2 grid w-[min(340px,calc(100vw-2rem))] gap-2 rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-3 shadow-[6px_6px_0_0_var(--color-ink)] max-[720px]:right-auto max-[720px]:left-0">
+          <div className="flex items-center justify-between gap-2 border-b-2 border-(--color-line) pb-2">
+            <strong className="text-sm text-(--color-ink)">Add to gathering</strong>
+            <Button
+              onClick={() => {
+                setOpen(false);
+                setGatheringQuery("");
+                void onCreateGathering(recipe);
+              }}
+              size="sm"
+              variant="primary"
+            >
+              <Plus size={14} />
+              New
+            </Button>
+          </div>
+
+          {gatheringsLoading ? (
+            <p className="m-0 rounded-lg bg-(--color-rail) p-3 text-[13px] font-bold text-(--color-fog)">
+              Loading gatherings
+            </p>
+          ) : gatherings.length ? (
+            <>
+              <div className="relative">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
+                  size={15}
+                />
+                <input
+                  aria-label="Search gatherings"
+                  className="min-h-10 w-full rounded-xl border border-(--color-line) bg-(--color-paper) pr-3 pl-9 text-[13px] font-bold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+                  onChange={(event) => setGatheringQuery(event.target.value)}
+                  placeholder="Search gatherings"
+                  ref={searchInputRef}
+                  value={gatheringQuery}
+                />
+              </div>
+              {visibleGatherings.length ? (
+                <div className="grid max-h-[320px] gap-2 overflow-auto pr-1">
+                  {visibleGatherings.map((gathering) => {
+                    const selected = gathering.recipeIds.includes(recipeId);
+                    return (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-2"
+                        key={gathering.id}
+                      >
+                        <button
+                          className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)] items-center gap-2 text-left"
+                          onClick={() =>
+                            void onToggleGathering(gathering.id, recipe, !selected)
+                          }
+                          type="button"
+                        >
+                          <span
+                            className={
+                              selected
+                                ? "grid size-6 place-items-center rounded-md bg-(--color-sage) text-white"
+                                : "grid size-6 place-items-center rounded-md border border-(--color-line) text-transparent"
+                            }
+                          >
+                            <Check size={14} strokeWidth={3} />
+                          </span>
+                          <span className="grid min-w-0 gap-1">
+                            <span className="truncate text-[13px] font-extrabold text-(--color-ink)">
+                              {gathering.title}
+                            </span>
+                            <span className="text-[11px] font-bold capitalize text-(--color-fog)">
+                              {gathering.status}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          aria-label={`Open ${gathering.title}`}
+                          className="grid size-9 place-items-center rounded-lg border border-(--color-line) bg-(--color-panel) text-(--color-ink) hover:border-(--color-ink)"
+                          onClick={() => {
+                            setOpen(false);
+                            setGatheringQuery("");
+                            onOpenGathering(gathering.id);
+                          }}
+                          type="button"
+                        >
+                          <ExternalLink size={15} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="m-0 rounded-lg border border-dashed border-(--color-line) bg-(--color-rail) p-3 text-[13px] font-bold leading-5 text-(--color-fog)">
+                  No gatherings match "{gatheringQuery.trim()}".
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="m-0 rounded-lg border border-dashed border-(--color-line) bg-(--color-rail) p-3 text-[13px] font-bold leading-5 text-(--color-fog)">
+              No gathering drafts yet.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -755,51 +984,88 @@ function FullWidthPage({ children }: { children: React.ReactNode }) {
 // overflow menu, wrapping either the read view or the editor.
 export function RecipePage({
   draft,
+  gatherings,
+  gatheringsLoading,
   mode,
   onBack,
   onChange,
+  onCreateGatheringForRecipe,
   onDelete,
   onMirrorImages,
+  onOpenGathering,
   onSetMode,
   onStructure,
+  onToggleGatheringRecipe,
   onVisibilityChange,
   ownerUserId,
   persistedVisibility,
-  recipes,
   saveState,
 }: {
   draft: Recipe;
+  gatherings: Gathering[];
+  gatheringsLoading: boolean;
   mode: "view" | "edit";
   onBack: () => void;
   onChange: (recipe: Recipe) => void;
+  onCreateGatheringForRecipe: (recipe: Recipe) => void | Promise<void>;
   onDelete: () => Promise<void>;
   onMirrorImages: () => Promise<void>;
+  onOpenGathering: (gatheringId: string) => void;
   onSetMode: (mode: "view" | "edit") => void;
   onStructure: () => Promise<void>;
+  onToggleGatheringRecipe: (
+    gatheringId: string,
+    recipe: Recipe,
+    selected: boolean,
+  ) => void | Promise<void>;
   onVisibilityChange: (visibility: RecipeVisibility) => Promise<void>;
   ownerUserId?: string | null;
   persistedVisibility?: Recipe["visibility"];
-  recipes?: Recipe[];
   saveState: SaveState;
 }) {
   const recipeId = draft.id && !draft.id.startsWith("demo-") ? draft.id : "";
 
   return (
     <FullWidthPage>
-      <div className="flex items-center justify-between gap-3">
-        <Button onClick={onBack} size="sm" variant="ghost">
+      <div className={recipeRailClassName}>
+        <Button
+          className={recipeRailButtonClassName}
+          onClick={onBack}
+          size="sm"
+          variant="ghost"
+        >
           <ArrowLeft size={16} />
           Recipes
         </Button>
-        <div className="flex items-center gap-2.5">
+        <div className={recipeRailActionsClassName}>
           <SaveIndicator saveState={saveState} />
+          {recipeId && mode === "view" ? (
+            <RecipeGatheringMenu
+              gatherings={gatherings}
+              gatheringsLoading={gatheringsLoading}
+              onCreateGathering={onCreateGatheringForRecipe}
+              onOpenGathering={onOpenGathering}
+              onToggleGathering={onToggleGatheringRecipe}
+              recipe={draft}
+            />
+          ) : null}
           {mode === "view" ? (
-            <Button onClick={() => onSetMode("edit")} size="sm" variant="secondary">
+            <Button
+              className={recipeRailButtonClassName}
+              onClick={() => onSetMode("edit")}
+              size="sm"
+              variant="secondary"
+            >
               <Pencil size={15} />
               Edit
             </Button>
           ) : (
-            <Button onClick={() => onSetMode("view")} size="sm" variant="primary">
+            <Button
+              className={recipeRailPrimaryButtonClassName}
+              onClick={() => onSetMode("view")}
+              size="sm"
+              variant="primary"
+            >
               <Check size={15} />
               Done
             </Button>
@@ -822,10 +1088,7 @@ export function RecipePage({
       </div>
 
       {mode === "view" ? (
-        <>
-          <RecipeReadView draft={draft} />
-          {recipeId ? <RecipeGenerationPanel recipe={draft} recipes={recipes} /> : null}
-        </>
+        <RecipeReadView draft={draft} />
       ) : (
         <RecipeEditor
           draft={draft}
@@ -858,8 +1121,13 @@ export function BrowseRecipePage({
 }) {
   return (
     <FullWidthPage>
-      <div className="flex items-center justify-between gap-3">
-        <Button onClick={onBack} size="sm" variant="ghost">
+      <div className={recipeRailClassName}>
+        <Button
+          className={recipeRailButtonClassName}
+          onClick={onBack}
+          size="sm"
+          variant="ghost"
+        >
           <ArrowLeft size={16} />
           {section === "shared" ? "Shared with you" : "Explore"}
         </Button>
@@ -880,8 +1148,13 @@ export function BrowseRecipePage({
 export function RecipeNotFound({ onBack }: { onBack: () => void }) {
   return (
     <FullWidthPage>
-      <div className="flex items-center justify-between gap-3">
-        <Button onClick={onBack} size="sm" variant="ghost">
+      <div className={recipeRailClassName}>
+        <Button
+          className={recipeRailButtonClassName}
+          onClick={onBack}
+          size="sm"
+          variant="ghost"
+        >
           <ArrowLeft size={16} />
           Recipes
         </Button>
@@ -1007,21 +1280,10 @@ export function RecipeLibrary({
           sharedCount={sharedCount}
         />
       ) : null}
-      <div className="m-0 grid grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-2 shadow-[0_1px_2px_rgba(54,42,27,0.04)] [&>input]:min-w-0 [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input::placeholder]:text-[#8a8378] [&>svg]:text-(--color-fog)">
-        <svg
-          aria-hidden="true"
-          fill="none"
-          height="17"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          width="17"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
+      <div className="m-0 grid min-h-12 grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-2xl border-2 border-solid border-(--color-ink) bg-[linear-gradient(135deg,#fffdf8,#fff4d7)] p-2 shadow-[3px_3px_0_0_var(--color-ink)] transition focus-within:-translate-y-0.5 focus-within:shadow-[5px_5px_0_0_var(--color-ink)] [&>input]:min-w-0 [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:font-semibold [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input::placeholder]:text-[#8a8378]">
+        <span className="flex size-8 items-center justify-center rounded-xl border-2 border-(--color-ink) bg-(--color-sage-soft) text-(--color-sage)">
+          <Search aria-hidden="true" size={17} />
+        </span>
         <input
           aria-label="Search recipes"
           onChange={(event) => onQuery(event.target.value)}
@@ -1045,10 +1307,10 @@ export function RecipeLibrary({
         </>
       ) : section === "mine" ? (
         <>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
             {ownedRecipes.map((recipe) => (
               <button
-                className={`${cardClassName} flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform hover:-translate-x-px hover:-translate-y-px`}
+                className={`${cardClassName} relative flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-tomato) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[-0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-tomato)]`}
                 key={recipe.id}
                 onClick={() => onOpenOwned(recipe.id)}
                 type="button"
@@ -1078,10 +1340,10 @@ export function RecipeLibrary({
           </div>
         </>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
           {browseRecipes.map((recipe) => (
             <button
-              className={`${cardClassName} flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform hover:-translate-x-px hover:-translate-y-px`}
+              className={`${cardClassName} relative flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-sage-soft) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sage)]`}
               key={sharedRecipeKey(recipe)}
               onClick={() => onOpenBrowse(sharedRecipeKey(recipe))}
               type="button"

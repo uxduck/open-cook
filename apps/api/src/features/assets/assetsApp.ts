@@ -24,6 +24,10 @@ const imageKeyParamSchema = v.object({
   key: v.pipe(v.string(), v.minLength(1)),
 });
 
+const mediaKeyParamSchema = v.object({
+  key: v.pipe(v.string(), v.minLength(1)),
+});
+
 const mirrorRecipesResultSchema = v.object({
   failed: v.number(),
   updated: v.number(),
@@ -170,6 +174,33 @@ export const assetsApp = new Hono<Env>()
         skipped: recipes.length - updatedRecipes.length - failed,
         recipes: mirroredRecipes,
       });
+    },
+  )
+  .get(
+    "/media/:key",
+    describeRoute({
+      description:
+        "Public, unsigned media read-through for generated gathering audio.",
+      responses: {
+        200: { description: "Public generated media." },
+        404: { description: "Media not found." },
+      },
+    }),
+    validator("param", mediaKeyParamSchema),
+    async (c) => {
+      const object = await c.env.RECIPE_IMAGES?.get(c.req.valid("param").key);
+      if (!object) {
+        return c.json({ error: "Media not found" }, 404);
+      }
+
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set(
+        "cache-control",
+        headers.get("cache-control") ?? "public, max-age=86400",
+      );
+      headers.set("etag", object.httpEtag);
+      return new Response(object.body, { headers });
     },
   )
   .get(

@@ -12,7 +12,7 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 import * as v from "valibot";
 import type { Env } from "../../AppContext";
 import {
-  createDeepgramToken,
+  createDeepgramListenProxy,
   DeepgramRequestError,
   DeepgramUnavailableError,
 } from "../../ai/deepgram";
@@ -37,11 +37,6 @@ const recipeRemixRequestSchema = v.object({
   audience: v.optional(recipeAiAudienceSchema),
   theme: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(120))),
   includeImagePrompt: v.optional(v.boolean()),
-});
-
-const voiceTokenResponseSchema = v.object({
-  token: v.string(),
-  expiresInSeconds: v.number(),
 });
 
 const recipeRemixResponseSchema = v.object({
@@ -174,33 +169,40 @@ export const aiApp = new Hono<Env>()
       }
     },
   )
-  .post(
-    "/voice/token",
+  .get(
+    "/voice/listen",
     describeRoute({
       description:
-        "Mint a short-lived Deepgram key so the browser can stream dictation audio directly to Deepgram. The project API key never leaves the Worker.",
+        "Proxy browser dictation audio to Deepgram's streaming WebSocket. The Deepgram API key never leaves the Worker.",
       responses: {
-        200: {
-          content: {
-            "application/json": { schema: resolver(voiceTokenResponseSchema) },
-          },
-          description: "Temporary Deepgram key issued.",
-        },
-        502: { description: "Deepgram key request failed." },
+        101: { description: "Voice dictation WebSocket connected." },
+        426: { description: "WebSocket upgrade required." },
+        502: { description: "Deepgram streaming connection failed." },
         503: { description: "Deepgram voice is not configured." },
       },
     }),
     async (c) => {
       try {
-        const token = await createDeepgramToken(c.env);
-        return c.json(token);
+        return await createDeepgramListenProxy(c.req.raw, c.env);
       } catch (error) {
         if (error instanceof DeepgramUnavailableError) {
           return c.json({ error: error.message }, 503);
         }
         if (error instanceof DeepgramRequestError) {
-          return c.json({ error: error.message }, 502);
+          console.warn("[voice] Deepgram listen proxy failed", {
+            message: error.message,
+            providerMessage: error.providerMessage,
+            status: error.status,
+          });
+          return c.json(
+            {
+              error: "Could not start voice dictation.",
+              providerStatus: error.status,
+            },
+            502,
+          );
         }
+        console.warn("[voice] Could not start voice dictation", error);
         return c.json({ error: "Could not start voice dictation." }, 502);
       }
     },

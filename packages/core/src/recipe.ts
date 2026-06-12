@@ -247,6 +247,7 @@ export function recipeSearchText(recipe: Recipe) {
     decodedRecipe.source?.url,
     ...decodedRecipe.tags,
     ...decodedRecipe.ingredients.map((ingredient) => ingredient.text),
+    ...decodedRecipe.ingredients.map((ingredient) => ingredient.note),
     ...decodedRecipe.steps.map((step) => step.text),
     ...decodedRecipe.notes,
   ]

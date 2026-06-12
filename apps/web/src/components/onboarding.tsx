@@ -26,7 +26,8 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useSession } from "../context/SessionProvider";
-import { Button } from "../ui";
+import { Button, workspacePageBaseClassName } from "../ui";
+import { WorkspaceHeader } from "./tools";
 
 type ListField =
   | "allergies"
@@ -280,6 +281,18 @@ function errorMessage(error: unknown) {
 }
 
 export function OnboardingPage() {
+  return <FoodPreferencesPage />;
+}
+
+export function FoodPreferencesPage({
+  embedded = false,
+  onSaved,
+  onSkip,
+}: {
+  embedded?: boolean;
+  onSaved?: () => void;
+  onSkip?: () => void;
+} = {}) {
   const navigate = useNavigate();
   const { session, sessionLoading } = useSession();
   const [preferences, setPreferences] = useState<FoodPreferences>(() => {
@@ -295,6 +308,18 @@ export function OnboardingPage() {
   useEffect(() => {
     writeStoredPreferences(preferences);
   }, [preferences]);
+
+  useEffect(() => {
+    if (embedded || sessionLoading || !session) {
+      return;
+    }
+
+    void navigate({
+      replace: true,
+      search: { page: "preferences" },
+      to: "/app",
+    });
+  }, [embedded, navigate, session, sessionLoading]);
 
   useEffect(() => {
     if (sessionLoading || !session) {
@@ -424,7 +449,11 @@ export function OnboardingPage() {
       setPreferences(saved.preferences);
       writeStoredPreferences(saved.preferences);
       setSaveState("saved");
-      await navigate({ to: "/app" });
+      setStatusMessage("Preferences saved.");
+      onSaved?.();
+      if (!embedded) {
+        await navigate({ to: "/app" });
+      }
     } catch (error) {
       setSaveState("error");
       setStatusMessage(
@@ -436,51 +465,79 @@ export function OnboardingPage() {
   }
 
   function skipOnboarding() {
+    if (onSkip) {
+      onSkip();
+      return;
+    }
     void navigate({ to: session ? "/app" : "/register" });
   }
 
+  if (!embedded && !sessionLoading && session) {
+    return null;
+  }
+
   return (
-    <main className="min-h-screen bg-(--background) text-(--foreground) [font-family:var(--font-ui)]">
-      <header className="border-b-2 border-(--border) bg-[color-mix(in_oklch,var(--background)_86%,white)] shadow-[0_2px_0_var(--border)]">
-        <div className="mx-auto flex min-h-[72px] w-full max-w-[1220px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <Link
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg text-xl font-black text-(--foreground)"
-            to="/"
-          >
-            <img alt="" className="size-7" src="/logo.png" />
-            OpenCook
-          </Link>
-
-          <nav
-            className="flex flex-wrap items-center justify-end gap-2"
-            aria-label="Account"
-          >
-            {session ? (
-              <Button onClick={() => navigate({ to: "/app" })} size="sm">
-                Open app
-                <ArrowRight size={15} />
-              </Button>
-            ) : (
-              <>
-                <Button onClick={() => navigate({ to: "/login" })} size="sm">
-                  <LogIn size={15} />
-                  Log in
-                </Button>
-                <Button
-                  onClick={() => navigate({ to: "/register" })}
-                  size="sm"
-                  variant="primary"
-                >
-                  <UserPlus size={15} />
-                  Create account
-                </Button>
-              </>
-            )}
-          </nav>
+    <main
+      className={
+        embedded
+          ? `${workspacePageBaseClassName} bg-(--background) text-(--foreground) [font-family:var(--font-ui)]`
+          : "min-h-screen bg-(--background) text-(--foreground) [font-family:var(--font-ui)]"
+      }
+    >
+      {embedded ? (
+        <div className="mx-auto w-full max-w-[1220px]">
+          <WorkspaceHeader
+            description="Set the default diets, allergies, cuisines, foods, and kitchen constraints OpenCook should respect when adapting recipes."
+            icon={<Salad size={25} />}
+            title="Food preferences"
+          />
         </div>
-      </header>
+      ) : (
+        <header className="border-b-2 border-(--border) bg-[color-mix(in_oklch,var(--background)_86%,white)] shadow-[0_2px_0_var(--border)]">
+          <div className="mx-auto flex min-h-[72px] w-full max-w-[1220px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <Link
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg text-xl font-black text-(--foreground)"
+              to="/"
+            >
+              <img alt="" className="size-7" src="/logo.png" />
+              OpenCook
+            </Link>
 
-      <section className="mx-auto grid w-full max-w-[1220px] gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:py-10">
+            <nav
+              className="flex flex-wrap items-center justify-end gap-2"
+              aria-label="Account"
+            >
+              {session ? (
+                <Button onClick={() => navigate({ to: "/app" })} size="sm">
+                  Open app
+                  <ArrowRight size={15} />
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={() => navigate({ to: "/login" })} size="sm">
+                    <LogIn size={15} />
+                    Log in
+                  </Button>
+                  <Button
+                    onClick={() => navigate({ to: "/register" })}
+                    size="sm"
+                    variant="primary"
+                  >
+                    <UserPlus size={15} />
+                    Create account
+                  </Button>
+                </>
+              )}
+            </nav>
+          </div>
+        </header>
+      )}
+
+      <section
+        className={`mx-auto grid w-full max-w-[1220px] gap-8 lg:grid-cols-[minmax(0,1fr)_390px] ${
+          embedded ? "py-7" : "px-4 py-8 sm:px-6 lg:py-10"
+        }`}
+      >
         <div className="min-w-0">
           <div className="max-w-3xl">
             <h1 className="[font-family:var(--font-display)] text-[clamp(2rem,5vw,3.7rem)] font-black leading-[0.98] tracking-normal text-(--foreground)">
@@ -756,7 +813,7 @@ export function OnboardingPage() {
 
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button disabled={saveState === "saving"} onClick={skipOnboarding}>
-              Skip for now
+              {embedded ? "Back to recipes" : "Skip for now"}
             </Button>
             <Button
               disabled={saveState === "saving" || sessionLoading}
@@ -770,8 +827,8 @@ export function OnboardingPage() {
               ) : (
                 <Save size={16} />
               )}
-              Save and continue
-              <ArrowRight size={16} />
+              {embedded ? "Save preferences" : "Save and continue"}
+              {embedded ? null : <ArrowRight size={16} />}
             </Button>
           </div>
         </div>

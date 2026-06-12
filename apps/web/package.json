@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite dev --host 127.0.0.1 --port 5173",
     "build": "vite build",
+    "build:vercel": "OPEN_COOK_DEPLOY_TARGET=vercel vite build",
     "deploy": "pnpm run deploy:production",
     "deploy:production": "CLOUDFLARE_ENV=production pnpm run build && wrangler deploy",
     "deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build && wrangler deploy",
@@ -31,6 +32,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "nitro": "3.0.260610-beta",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",

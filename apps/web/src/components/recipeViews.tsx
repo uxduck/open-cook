@@ -26,6 +26,7 @@ import {
   emptyNoteClass,
   errorMessage,
   footnoteClass,
+  ingredientDisplayNote,
   readOnlyListClass,
   recipeImagesOf,
   type RecipeSection,
@@ -136,11 +137,19 @@ export function ReadOnlyRecipeContent({ recipe }: { recipe: SharedRecipe }) {
           <strong>Ingredients</strong>
         </div>
         <ul className={`list-disc ${readOnlyListClass}`}>
-          {recipe.ingredients.map((ingredient, index) => (
-            <li key={ingredient.id ?? `${index}-${ingredient.text}`}>
-              {ingredientDisplayText(ingredient)}
-            </li>
-          ))}
+          {recipe.ingredients.map((ingredient, index) => {
+            const note = ingredientDisplayNote(ingredient);
+            return (
+              <li key={ingredient.id ?? `${index}-${ingredient.text}`}>
+                {ingredientDisplayText(ingredient, 1, { includeNote: false })}
+                {note ? (
+                  <span className="mt-0.5 block text-[12.5px] leading-snug text-(--color-fog)">
+                    {note}
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       </section>
 

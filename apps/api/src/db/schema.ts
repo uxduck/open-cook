@@ -1,4 +1,11 @@
-import type { FoodPreferences, Recipe } from "@open-cook/core";
+import type {
+  FoodPreferences,
+  GatheringArtifactKind,
+  GatheringArtifactProvider,
+  GatheringArtifactStatus,
+  GatheringInvitee,
+  Recipe,
+} from "@open-cook/core";
 import { relations, sql } from "drizzle-orm";
 import {
   foreignKey,
@@ -7,6 +14,7 @@ import {
   primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 const timestampMsDefault = sql`(unixepoch() * 1000)`;
@@ -292,6 +300,122 @@ export const recipeSharesRelations = relations(recipeShares, ({ one }) => ({
   }),
 }));
 
+export const gatherings = sqliteTable(
+  "gatherings",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull().unique(),
+    title: text("title").notNull(),
+    prompt: text("prompt"),
+    welcome: text("welcome").notNull(),
+    dietary: text("dietary"),
+    guestQuestion: text("guest_question").notNull(),
+    recipeIds: text("recipe_ids_json", { mode: "json" }).$type<string[]>().notNull(),
+    invitees: text("invitees_json", { mode: "json" })
+      .$type<GatheringInvitee[]>()
+      .notNull(),
+    status: text("status", { enum: ["draft", "published"] })
+      .notNull()
+      .default("draft"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    publishedAt: text("published_at"),
+  },
+  (table) => [
+    index("gatherings_user_updated_at_idx").on(table.userId, table.updatedAt),
+    index("gatherings_slug_idx").on(table.slug),
+    index("gatherings_status_idx").on(table.status),
+  ],
+);
+
+export const gatheringResponses = sqliteTable(
+  "gathering_responses",
+  {
+    id: text("id").primaryKey(),
+    gatheringId: text("gathering_id")
+      .notNull()
+      .references(() => gatherings.id, { onDelete: "cascade" }),
+    guestName: text("guest_name").notNull(),
+    email: text("email"),
+    selectedRecipeIds: text("selected_recipe_ids_json", { mode: "json" })
+      .$type<string[]>()
+      .notNull(),
+    bringing: text("bringing"),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    index("gathering_responses_gathering_created_idx").on(
+      table.gatheringId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const gatheringArtifacts = sqliteTable(
+  "gathering_artifacts",
+  {
+    id: text("id").primaryKey(),
+    gatheringId: text("gathering_id")
+      .notNull()
+      .references(() => gatherings.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<GatheringArtifactKind>().notNull(),
+    label: text("label").notNull(),
+    provider: text("provider").$type<GatheringArtifactProvider>().notNull(),
+    status: text("status").$type<GatheringArtifactStatus>().notNull(),
+    prompt: text("prompt"),
+    mediaUrl: text("media_url"),
+    contentType: text("content_type"),
+    size: integer("size"),
+    model: text("model"),
+    requestId: text("request_id"),
+    voiceId: text("voice_id"),
+    voiceName: text("voice_name"),
+    statusUrl: text("status_url"),
+    responseUrl: text("response_url"),
+    cancelUrl: text("cancel_url"),
+    error: text("error"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    uniqueIndex("gathering_artifacts_gathering_kind_unique").on(
+      table.gatheringId,
+      table.kind,
+    ),
+    index("gathering_artifacts_gathering_idx").on(table.gatheringId),
+    index("gathering_artifacts_request_idx").on(table.requestId),
+    index("gathering_artifacts_status_idx").on(table.status),
+  ],
+);
+
+export const gatheringsRelations = relations(gatherings, ({ many, one }) => ({
+  owner: one(user, {
+    fields: [gatherings.userId],
+    references: [user.id],
+  }),
+  artifacts: many(gatheringArtifacts),
+  responses: many(gatheringResponses),
+}));
+
+export const gatheringArtifactsRelations = relations(gatheringArtifacts, ({ one }) => ({
+  gathering: one(gatherings, {
+    fields: [gatheringArtifacts.gatheringId],
+    references: [gatherings.id],
+  }),
+}));
+
+export const gatheringResponsesRelations = relations(gatheringResponses, ({ one }) => ({
+  gathering: one(gatherings, {
+    fields: [gatheringResponses.gatheringId],
+    references: [gatherings.id],
+  }),
+}));
+
 export const recipeCookProgress = sqliteTable(
   "recipe_cook_progress",
   {
@@ -336,3 +460,9 @@ export type RecipeRow = typeof recipes.$inferSelect;
 export type NewRecipeRow = typeof recipes.$inferInsert;
 export type RecipeCookProgressRow = typeof recipeCookProgress.$inferSelect;
 export type UserFoodPreferencesRow = typeof userFoodPreferences.$inferSelect;
+export type GatheringRow = typeof gatherings.$inferSelect;
+export type NewGatheringRow = typeof gatherings.$inferInsert;
+export type GatheringArtifactRow = typeof gatheringArtifacts.$inferSelect;
+export type NewGatheringArtifactRow = typeof gatheringArtifacts.$inferInsert;
+export type GatheringResponseRow = typeof gatheringResponses.$inferSelect;
+export type NewGatheringResponseRow = typeof gatheringResponses.$inferInsert;

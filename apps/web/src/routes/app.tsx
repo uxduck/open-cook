@@ -5,12 +5,24 @@ import type { Page, RecipeSection } from "../lib/recipe";
 type AppSearch = {
   add?: boolean;
   browse?: string;
+  gathering?: string;
   page?: Page;
   recipe?: string;
   section?: RecipeSection;
 };
 
-const appPages = new Set<Page>(["recipes", "api", "export", "build", "settings"]);
+const appPages = new Set<Page>([
+  "recipes",
+  "gatherings",
+  "gathering",
+  "gathering-generating",
+  "api",
+  "billing",
+  "export",
+  "preferences",
+  "build",
+  "settings",
+]);
 const recipeSections = new Set<RecipeSection>(["mine", "shared", "explore"]);
 
 function stringSearchValue(value: unknown) {
@@ -23,6 +35,7 @@ export const Route = createFileRoute("/app")({
   ssr: false,
   validateSearch: (search: Record<string, unknown>): AppSearch => {
     const page = stringSearchValue(search.page);
+    const gathering = stringSearchValue(search.gathering);
     const section = stringSearchValue(search.section);
     const recipe = stringSearchValue(search.recipe);
     const browse = stringSearchValue(search.browse);
@@ -31,6 +44,7 @@ export const Route = createFileRoute("/app")({
     return {
       ...(add ? { add } : {}),
       ...(browse ? { browse } : {}),
+      ...(gathering ? { gathering } : {}),
       ...(page && appPages.has(page as Page) ? { page: page as Page } : {}),
       ...(recipe ? { recipe } : {}),
       ...(section && recipeSections.has(section as RecipeSection)

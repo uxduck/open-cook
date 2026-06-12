@@ -1,53 +1,153 @@
 import type { Env } from "../AppContext";
 
-/** A short-lived Deepgram JWT minted server-side so the browser can open a
- * streaming WebSocket directly to Deepgram without ever seeing the long-lived
- * API key. Uses Deepgram's purpose-built `/v1/auth/grant` endpoint, which is
- * NOT project-scoped — it only needs an API key with Member+ permission.
- * The returned token carries `usage:write` and expires quickly. */
-export type DeepgramToken = {
-  token: string;
-  expiresInSeconds: number;
-};
-
 export class DeepgramUnavailableError extends Error {}
-export class DeepgramRequestError extends Error {}
+export class DeepgramRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly providerMessage?: string,
+  ) {
+    super(message);
+    this.name = "DeepgramRequestError";
+  }
+}
 
-const TOKEN_TTL_SECONDS = 60;
+const ERROR_BODY_LIMIT = 500;
+const DEEPGRAM_LISTEN_URL = "https://api.deepgram.com/v1/listen";
 
-export async function createDeepgramToken(
+export function buildDeepgramListenUrl() {
+  const url = new URL(DEEPGRAM_LISTEN_URL);
+  url.searchParams.set("model", "nova-3");
+  url.searchParams.set("smart_format", "true");
+  url.searchParams.set("interim_results", "true");
+  url.searchParams.set("punctuate", "true");
+  return url.toString();
+}
+
+export async function createDeepgramListenProxy(
+  request: Request,
   env: Env["Bindings"],
-): Promise<DeepgramToken> {
-  const apiKey = env.DEEPGRAM_API_KEY;
+): Promise<Response> {
+  if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+    return new Response("Expected a WebSocket upgrade request.", {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 426,
+    });
+  }
+
+  const apiKey = env.DEEPGRAM_API_KEY?.trim();
   if (!apiKey) {
     throw new DeepgramUnavailableError("Deepgram voice is not configured.");
   }
 
-  const response = await fetch("https://api.deepgram.com/v1/auth/grant", {
-    method: "POST",
+  const deepgramResponse = await fetch(buildDeepgramListenUrl(), {
     headers: {
       Authorization: `Token ${apiKey}`,
-      "Content-Type": "application/json",
+      Upgrade: "websocket",
     },
-    body: JSON.stringify({ ttl_seconds: TOKEN_TTL_SECONDS }),
   });
 
-  if (!response.ok) {
+  const deepgramSocket = deepgramResponse.webSocket;
+  if (!deepgramSocket) {
+    const providerMessage = await deepgramResponse
+      .text()
+      .then((text) => sanitizeProviderMessage(text))
+      .catch(() => undefined);
     throw new DeepgramRequestError(
-      `Deepgram token request failed (${response.status}).`,
+      `Deepgram listen connection failed (${deepgramResponse.status}).`,
+      deepgramResponse.status,
+      providerMessage,
     );
   }
 
-  const body = (await response.json()) as {
-    access_token?: string;
-    expires_in?: number;
-  };
-  if (!body.access_token) {
-    throw new DeepgramRequestError("Deepgram did not return a token.");
+  const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+
+  proxyWebSockets(server, deepgramSocket);
+
+  return new Response(null, {
+    status: 101,
+    webSocket: client,
+  });
+}
+
+function proxyWebSockets(clientSocket: WebSocket, deepgramSocket: WebSocket) {
+  clientSocket.binaryType = "arraybuffer";
+  deepgramSocket.binaryType = "arraybuffer";
+  clientSocket.accept({ allowHalfOpen: true });
+  deepgramSocket.accept({ allowHalfOpen: true });
+
+  clientSocket.addEventListener("message", (event) => {
+    sendIfOpen(deepgramSocket, event.data);
+  });
+  deepgramSocket.addEventListener("message", (event) => {
+    sendIfOpen(clientSocket, event.data);
+  });
+
+  clientSocket.addEventListener("close", (event) => {
+    closeSocket(deepgramSocket, event, "client closed");
+    closeSocket(clientSocket, event, "client closed");
+  });
+  deepgramSocket.addEventListener("close", (event) => {
+    closeSocket(clientSocket, event, "deepgram closed");
+    closeSocket(deepgramSocket, event, "deepgram closed");
+  });
+
+  clientSocket.addEventListener("error", () => {
+    closeSocket(deepgramSocket, undefined, "client error");
+    closeSocket(clientSocket, undefined, "client error");
+  });
+  deepgramSocket.addEventListener("error", () => {
+    closeSocket(clientSocket, undefined, "deepgram error");
+    closeSocket(deepgramSocket, undefined, "deepgram error");
+  });
+}
+
+function sendIfOpen(socket: WebSocket, data: unknown) {
+  if (socket.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  try {
+    socket.send(data as string | ArrayBuffer | ArrayBufferView);
+  } catch {
+    closeSocket(socket, undefined, "send failed");
+  }
+}
+
+function closeSocket(socket: WebSocket, event: CloseEvent | undefined, reason: string) {
+  if (socket.readyState === WebSocket.CLOSED) {
+    return;
   }
 
-  return {
-    token: body.access_token,
-    expiresInSeconds: body.expires_in ?? TOKEN_TTL_SECONDS,
-  };
+  try {
+    socket.close(safeCloseCode(event?.code), safeCloseReason(event?.reason || reason));
+  } catch {
+    try {
+      socket.close(1011, reason);
+    } catch {
+      // Nothing useful left to do once close itself fails.
+    }
+  }
+}
+
+function safeCloseCode(code: number | undefined) {
+  if (
+    code &&
+    code >= 1000 &&
+    code < 5000 &&
+    code !== 1005 &&
+    code !== 1006 &&
+    code !== 1015
+  ) {
+    return code;
+  }
+  return 1011;
+}
+
+function safeCloseReason(reason: string) {
+  return reason.length > 120 ? reason.slice(0, 120) : reason;
+}
+
+function sanitizeProviderMessage(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, ERROR_BODY_LIMIT) : undefined;
 }

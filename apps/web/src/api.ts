@@ -2,7 +2,10 @@ import {
   decodeRecipeText,
   type CreateRecipeInput,
   type FoodPreferences,
+  type Gathering,
+  type GatheringGuestResponse,
   type GeneratedRecipeImage,
+  type PublicGathering,
   type Recipe,
   type RecipeAiAudience,
   type RecipeAiProviderMetadata,
@@ -161,6 +164,131 @@ export type RecipeRemixPayload = {
   includeImagePrompt?: boolean;
 };
 
+export type GatheringDraftPayload = {
+  title?: string;
+  prompt?: string;
+  dietary?: string;
+  guestQuestion?: string;
+  recipeIds: string[];
+};
+
+export type GatheringDraftResult = {
+  title: string;
+  welcome: string;
+  guestQuestion: string;
+  provider: {
+    provider: "workers-ai" | "template";
+    model?: string;
+  };
+};
+
+export type GatheringRecipeRecommendationPayload = {
+  title?: string;
+  prompt?: string;
+  dietary?: string;
+  guestQuestion?: string;
+  query?: string;
+  count?: number;
+  candidateRecipeIds?: string[];
+};
+
+export type GatheringRecipeRecommendationResult = {
+  recipeIds: string[];
+  recommendations: Array<{
+    id: string;
+    title: string;
+    score: number;
+    reasons: string[];
+  }>;
+  rejectedCount: number;
+  warnings: string[];
+  provider: {
+    provider: "deterministic" | "workers-ai";
+    model?: string;
+  };
+};
+
+export type PublishGatheringPayload = {
+  title: string;
+  prompt?: string;
+  welcome: string;
+  dietary?: string;
+  guestQuestion: string;
+  recipeIds: string[];
+  inviteeEmails?: string[];
+};
+
+export type SaveGatheringPayload = {
+  title?: string;
+  prompt?: string;
+  welcome?: string;
+  dietary?: string;
+  guestQuestion?: string;
+  recipeIds?: string[];
+  inviteeEmails?: string[];
+};
+
+export type PublishGatheringResult = {
+  gathering: Gathering;
+  url: string;
+};
+
+export type SendGatheringInvitesPayload = {
+  inviteeEmails: string[];
+};
+
+export type SendGatheringInvitesResult = {
+  gathering: Gathering;
+  sentCount: number;
+  url: string;
+};
+
+export type GatheringArtifactId =
+  | "menu-images"
+  | "page-artwork"
+  | "voiceover"
+  | "video-teaser";
+
+export type GatheringArtifactJob = {
+  id: GatheringArtifactId;
+  label: string;
+  provider: "elevenlabs" | "fal";
+  status: "ready" | "submitted" | "skipped" | "failed";
+  audioUrl?: string;
+  mediaUrl?: string;
+  contentType?: string;
+  size?: number;
+  model?: string;
+  requestId?: string;
+  voiceId?: string;
+  voiceName?: string;
+  statusUrl?: string;
+  responseUrl?: string;
+  cancelUrl?: string;
+  error?: string;
+};
+
+export type GenerateGatheringArtifactsPayload = {
+  title?: string;
+  prompt?: string;
+  welcome?: string;
+  dietary?: string;
+  guestQuestion?: string;
+  recipeIds: string[];
+};
+
+export type GenerateGatheringArtifactsResult = {
+  jobs: GatheringArtifactJob[];
+};
+
+export type GatheringGuestResponsePayload = {
+  guestName: string;
+  email?: string;
+  selectedRecipeIds: string[];
+  bringing?: string;
+  note?: string;
+};
+
 export type ApiErrorReason = "recipe_limit" | "restyle_quota" | string;
 
 /** Error thrown by API calls, carrying the HTTP status and any machine-readable
@@ -178,6 +306,12 @@ export class ApiError extends Error {
 
 export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
+}
+
+const gatheringLoadTimeoutMs = 10_000;
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -204,6 +338,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+async function requestWithTimeout<T>(
+  path: string,
+  timeoutMs: number,
+  init?: RequestInit,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await request<T>(path, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error("Request timed out. Try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function requestText(path: string, init?: RequestInit): Promise<string> {
@@ -407,10 +561,6 @@ export const api = {
       body: JSON.stringify(payload),
       method: "POST",
     }),
-  voiceToken: () =>
-    request<{ token: string; expiresInSeconds: number }>("/api/ai/voice/token", {
-      method: "POST",
-    }),
   generateRecipeImage: (payload: {
     recipe: RecipeDraft;
     prompt?: string;
@@ -421,6 +571,72 @@ export const api = {
       body: JSON.stringify(payload),
       method: "POST",
     }),
+  generateGatheringDraft: (payload: GatheringDraftPayload) =>
+    request<GatheringDraftResult>("/api/gatherings/draft", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  recommendGatheringRecipes: (payload: GatheringRecipeRecommendationPayload) =>
+    request<GatheringRecipeRecommendationResult>("/api/gatherings/recommend-recipes", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  generateGatheringArtifacts: (payload: GenerateGatheringArtifactsPayload) =>
+    request<GenerateGatheringArtifactsResult>("/api/gatherings/artifacts", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  publishGathering: (payload: PublishGatheringPayload) =>
+    request<PublishGatheringResult>("/api/gatherings", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  listGatherings: () =>
+    requestWithTimeout<Gathering[]>("/api/gatherings", gatheringLoadTimeoutMs),
+  createGathering: (payload: SaveGatheringPayload = {}) =>
+    request<Gathering>("/api/gatherings/drafts", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  getOwnedGathering: (id: string) =>
+    requestWithTimeout<Gathering>(
+      `/api/gatherings/mine/${encodeURIComponent(id)}`,
+      gatheringLoadTimeoutMs,
+    ),
+  updateGathering: (id: string, payload: SaveGatheringPayload) =>
+    request<Gathering>(`/api/gatherings/mine/${encodeURIComponent(id)}`, {
+      body: JSON.stringify(payload),
+      method: "PATCH",
+    }),
+  publishOwnedGathering: (id: string, payload: SaveGatheringPayload) =>
+    request<PublishGatheringResult>(
+      `/api/gatherings/mine/${encodeURIComponent(id)}/publish`,
+      {
+        body: JSON.stringify(payload),
+        method: "POST",
+      },
+    ),
+  sendGatheringInvites: (id: string, payload: SendGatheringInvitesPayload) =>
+    request<SendGatheringInvitesResult>(
+      `/api/gatherings/mine/${encodeURIComponent(id)}/invites`,
+      {
+        body: JSON.stringify(payload),
+        method: "POST",
+      },
+    ),
+  getGathering: (slug: string) =>
+    requestWithTimeout<PublicGathering>(
+      `/api/gatherings/${encodeURIComponent(slug)}`,
+      gatheringLoadTimeoutMs,
+    ),
+  addGatheringResponse: (slug: string, payload: GatheringGuestResponsePayload) =>
+    request<GatheringGuestResponse>(
+      `/api/gatherings/${encodeURIComponent(slug)}/responses`,
+      {
+        body: JSON.stringify(payload),
+        method: "POST",
+      },
+    ),
   exportAllJson: () =>
     request<{ recipes: Recipe[] }>("/api/export/recipes/json").then((result) => ({
       ...result,

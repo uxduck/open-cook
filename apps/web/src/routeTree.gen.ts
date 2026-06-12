@@ -16,7 +16,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GSlugRouteImport } from './routes/g.$slug'
 import { Route as ROwnerIdIdRouteImport } from './routes/r.$ownerId.$id'
+import { Route as GSlugVideoRouteImport } from './routes/g.$slug.video'
+import { Route as GSlugRRecipeIdRouteImport } from './routes/g.$slug_.r.$recipeId'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -53,9 +56,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GSlugRoute = GSlugRouteImport.update({
+  id: '/g/$slug',
+  path: '/g/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ROwnerIdIdRoute = ROwnerIdIdRouteImport.update({
   id: '/r/$ownerId/$id',
   path: '/r/$ownerId/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GSlugVideoRoute = GSlugVideoRouteImport.update({
+  id: '/video',
+  path: '/video',
+  getParentRoute: () => GSlugRoute,
+} as any)
+const GSlugRRecipeIdRoute = GSlugRRecipeIdRouteImport.update({
+  id: '/g/$slug_/r/$recipeId',
+  path: '/g/$slug/r/$recipeId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -67,7 +85,10 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/g/$slug': typeof GSlugRouteWithChildren
+  '/g/$slug/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/g/$slug/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,7 +98,10 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/g/$slug': typeof GSlugRouteWithChildren
+  '/g/$slug/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/g/$slug/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,7 +112,10 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/g/$slug': typeof GSlugRouteWithChildren
+  '/g/$slug/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/g/$slug_/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -100,7 +127,10 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/g/$slug'
+    | '/g/$slug/video'
     | '/r/$ownerId/$id'
+    | '/g/$slug/r/$recipeId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -110,7 +140,10 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/g/$slug'
+    | '/g/$slug/video'
     | '/r/$ownerId/$id'
+    | '/g/$slug/r/$recipeId'
   id:
     | '__root__'
     | '/'
@@ -120,7 +153,10 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/g/$slug'
+    | '/g/$slug/video'
     | '/r/$ownerId/$id'
+    | '/g/$slug_/r/$recipeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,7 +167,9 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
+  GSlugRoute: typeof GSlugRouteWithChildren
   ROwnerIdIdRoute: typeof ROwnerIdIdRoute
+  GSlugRRecipeIdRoute: typeof GSlugRRecipeIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -185,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$slug': {
+      id: '/g/$slug'
+      path: '/g/$slug'
+      fullPath: '/g/$slug'
+      preLoaderRoute: typeof GSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/r/$ownerId/$id': {
       id: '/r/$ownerId/$id'
       path: '/r/$ownerId/$id'
@@ -192,8 +237,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ROwnerIdIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$slug/video': {
+      id: '/g/$slug/video'
+      path: '/video'
+      fullPath: '/g/$slug/video'
+      preLoaderRoute: typeof GSlugVideoRouteImport
+      parentRoute: typeof GSlugRoute
+    }
+    '/g/$slug_/r/$recipeId': {
+      id: '/g/$slug_/r/$recipeId'
+      path: '/g/$slug/r/$recipeId'
+      fullPath: '/g/$slug/r/$recipeId'
+      preLoaderRoute: typeof GSlugRRecipeIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface GSlugRouteChildren {
+  GSlugVideoRoute: typeof GSlugVideoRoute
+}
+
+const GSlugRouteChildren: GSlugRouteChildren = {
+  GSlugVideoRoute: GSlugVideoRoute,
+}
+
+const GSlugRouteWithChildren = GSlugRoute._addFileChildren(GSlugRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -203,7 +272,9 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
+  GSlugRoute: GSlugRouteWithChildren,
   ROwnerIdIdRoute: ROwnerIdIdRoute,
+  GSlugRRecipeIdRoute: GSlugRRecipeIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

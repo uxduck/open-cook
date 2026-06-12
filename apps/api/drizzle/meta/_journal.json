@@ -92,6 +92,20 @@
       "when": 1781683200000,
       "tag": "0012_user_food_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1781769600000,
+      "tag": "0013_gatherings",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1781856000000,
+      "tag": "0014_gathering_artifacts",
+      "breakpoints": true
     }
   ]
 }

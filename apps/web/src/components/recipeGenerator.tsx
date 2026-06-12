@@ -1,45 +1,110 @@
-import type { Recipe } from "@open-cook/core";
+import { recipeSearchText, type Recipe } from "@open-cook/core";
 import {
-  CalendarDays,
+  ArrowLeft,
   Check,
-  ClipboardList,
-  Copy,
-  FileText,
+  Clipboard,
+  Image as ImageIcon,
   Loader2,
+  Mail,
   Mic,
-  RefreshCcw,
+  Search,
   Send,
-  Share2,
   Sparkles,
   Square,
+  UserPlus,
   Users,
   Utensils,
-  Wand2,
+  Video,
+  Volume2,
+  X,
+  type LucideIcon,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type UIEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  type GatheringArtifactId,
+  type GatheringArtifactJob,
+  type GatheringDraftResult,
+  type PublishGatheringPayload,
+  type PublishGatheringResult,
+} from "../api";
+import { displayImageUrl } from "../imageDisplayUrl";
+import { errorMessage, recipeImagesOf } from "../lib/recipe";
 import { useDictation } from "../lib/useDictation";
 import { Button } from "../ui";
 
-type PreviewTab = "invite" | "menu" | "guests";
-
-type GatheringDraft = {
-  dietaryLine: string;
+export type GatheringBuildRequest = {
+  dietary: string;
   guestQuestion: string;
-  hostNote: string;
-  inviteBody: string;
-  menuIntro: string;
-  recipeTitles: string[];
-  subtitle: string;
+  inviteeEmails: string;
+  prompt: string;
   title: string;
-  toneLabel: string;
 };
+
+type GenerationArtifact = {
+  description: string;
+  Icon: LucideIcon;
+  id: GatheringArtifactId | "guest-page";
+  label: string;
+};
+
+type GenerationArtifactStatus =
+  | "active"
+  | "done"
+  | "failed"
+  | "ready"
+  | "skipped"
+  | "submitted"
+  | "waiting";
+
+export const defaultGatheringBuildRequest: GatheringBuildRequest = {
+  dietary: "",
+  guestQuestion: "Tell us anything we should avoid or adapt.",
+  inviteeEmails: "",
+  prompt: "Make it warm, simple, and easy to share.",
+  title: "",
+};
+
+export const gatheringRecipeAutoPickCount = 4;
+export const gatheringRecipePickerPageSize = 14;
+const gatheringRecipePickerScrollThresholdPx = 80;
+
+export function gatheringRecipePickerMatches(recipes: Recipe[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  return normalizedQuery
+    ? recipes.filter((item) =>
+        recipeSearchText(item).toLowerCase().includes(normalizedQuery),
+      )
+    : recipes;
+}
+
+export function nextGatheringRecipePickerCount(
+  currentCount: number,
+  totalCount: number,
+) {
+  return Math.min(totalCount, currentCount + gatheringRecipePickerPageSize);
+}
+
+export function gatheringRecipePickerAutoPickIds(
+  recipes: Recipe[],
+  count = gatheringRecipeAutoPickCount,
+) {
+  return recipes.slice(0, Math.max(0, count)).map((recipe) => recipe.id);
+}
 
 const directionPresets = [
   "dragon banquet",
-  "customised for children",
   "garden birthday lunch",
+  "cinematic invite",
+  "customised for children",
   "formal printed menu",
-  "easy weeknight supper",
   "make allergies prominent",
 ];
 
@@ -51,57 +116,75 @@ const dietaryPresets = [
   "kid-friendly portions",
 ];
 
-const previewTabs: Array<{ id: PreviewTab; label: string }> = [
-  { id: "invite", label: "Invite" },
-  { id: "menu", label: "Menu" },
-  { id: "guests", label: "Guests" },
+const generationArtifacts: GenerationArtifact[] = [
+  {
+    description: "Preparing dish image prompts and the menu image set.",
+    Icon: ImageIcon,
+    id: "menu-images",
+    label: "Menu images",
+  },
+  {
+    description: "Preparing the cover, invite art, and share-page visuals.",
+    Icon: Sparkles,
+    id: "page-artwork",
+    label: "Page artwork",
+  },
+  {
+    description: "Preparing a welcome audio intro guests can play.",
+    Icon: Volume2,
+    id: "voiceover",
+    label: "Welcome audio",
+  },
+  {
+    description: "Preparing a short motion teaser for sharing.",
+    Icon: Video,
+    id: "video-teaser",
+    label: "Video teaser",
+  },
+  {
+    description: "Packaging guest questions with the final page assets.",
+    Icon: Users,
+    id: "guest-page",
+    label: "Guest page",
+  },
 ];
 
-export function RecipeGenerationPanel({
-  recipe,
-  recipes = [],
+export function GatheringPage({
+  initialRequest = defaultGatheringBuildRequest,
+  onBackToRecipes,
+  onClear,
+  onGenerate,
+  onToggleRecipe,
+  recipes,
+  selectedRecipeIds,
+  selectedRecipes,
 }: {
-  recipe: Recipe;
-  recipes?: Recipe[];
+  initialRequest?: GatheringBuildRequest;
+  onBackToRecipes: () => void;
+  onClear: () => void;
+  onGenerate: (request: GatheringBuildRequest) => void;
+  onToggleRecipe: (recipe: Recipe) => void;
+  recipes: Recipe[];
+  selectedRecipeIds: string[];
+  selectedRecipes: Recipe[];
 }) {
-  const currentRecipeKey = recipeKey(recipe);
-  const availableRecipes = useMemo(
-    () => uniqueRecipes(recipe, recipes),
-    [recipe, recipes],
+  const [query, setQuery] = useState("");
+  const [title, setTitle] = useState(initialRequest.title);
+  const [prompt, setPrompt] = useState(initialRequest.prompt);
+  const [dietary, setDietary] = useState(initialRequest.dietary);
+  const [guestQuestion, setGuestQuestion] = useState(initialRequest.guestQuestion);
+  const [inviteeEmails, setInviteeEmails] = useState(initialRequest.inviteeEmails);
+  const [visibleRecipeCount, setVisibleRecipeCount] = useState(
+    gatheringRecipePickerPageSize,
   );
-  const [selectedRecipeKeys, setSelectedRecipeKeys] = useState<string[]>([
-    currentRecipeKey,
-  ]);
-  const [started, setStarted] = useState(false);
-  const [drafting, setDrafting] = useState(false);
-  const [prompt, setPrompt] = useState("Make it warm, simple, and easy to share.");
-  const [dietary, setDietary] = useState("");
-  const [guestQuestion, setGuestQuestion] = useState(
-    "Tell us anything we should avoid or adapt.",
-  );
-  const [activeTab, setActiveTab] = useState<PreviewTab>("invite");
-  const [copied, setCopied] = useState(false);
-  const draftingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dictation = useDictation();
   const dictationBaseRef = useRef("");
   const isDictating =
     dictation.status === "listening" || dictation.status === "connecting";
 
   useEffect(() => {
-    setSelectedRecipeKeys([currentRecipeKey]);
-  }, [currentRecipeKey]);
-
-  useEffect(() => {
-    return () => {
-      if (draftingTimerRef.current) {
-        clearTimeout(draftingTimerRef.current);
-      }
-      if (copyTimerRef.current) {
-        clearTimeout(copyTimerRef.current);
-      }
-    };
-  }, []);
+    setVisibleRecipeCount(gatheringRecipePickerPageSize);
+  }, [query, recipes]);
 
   useEffect(() => {
     if (dictation.status === "listening" || dictation.status === "connecting") {
@@ -110,61 +193,31 @@ export function RecipeGenerationPanel({
     }
   }, [dictation.liveText, dictation.status]);
 
-  const selectedRecipes = useMemo(() => {
-    const selected = new Set(selectedRecipeKeys);
-    const picked = availableRecipes.filter((item) => selected.has(recipeKey(item)));
-    return picked.length ? picked : [recipe];
-  }, [availableRecipes, recipe, selectedRecipeKeys]);
-
-  const draft = useMemo(
-    () =>
-      buildGatheringDraft({
-        dietary,
-        guestQuestion,
-        prompt,
-        recipes: selectedRecipes,
-      }),
-    [dietary, guestQuestion, prompt, selectedRecipes],
+  const selectedKeySet = useMemo(() => new Set(selectedRecipeIds), [selectedRecipeIds]);
+  const matchingRecipes = useMemo(
+    () => gatheringRecipePickerMatches(recipes, query),
+    [query, recipes],
   );
-
-  function queueDraft() {
-    setDrafting(true);
-    if (draftingTimerRef.current) {
-      clearTimeout(draftingTimerRef.current);
-    }
-    draftingTimerRef.current = setTimeout(() => setDrafting(false), 900);
-  }
-
-  function startGathering() {
-    setStarted(true);
-    queueDraft();
-  }
-
-  function toggleRecipe(nextRecipe: Recipe) {
-    const key = recipeKey(nextRecipe);
-    setSelectedRecipeKeys((current) => {
-      if (current.includes(key)) {
-        return current.length === 1 ? current : current.filter((item) => item !== key);
-      }
-      return [...current, key];
-    });
-    queueDraft();
-  }
+  const filteredRecipes = useMemo(() => {
+    return matchingRecipes.slice(0, visibleRecipeCount);
+  }, [matchingRecipes, visibleRecipeCount]);
+  const hasMoreRecipes = filteredRecipes.length < matchingRecipes.length;
+  const canMakePage = selectedRecipes.length > 0;
+  const selectedRecipeLabel = `${selectedRecipes.length} recipe${
+    selectedRecipes.length === 1 ? "" : "s"
+  } selected`;
 
   function appendDirection(value: string) {
     setPrompt((current) => (current.trim() ? `${current.trim()}; ${value}` : value));
-    queueDraft();
   }
 
   function appendDietary(value: string) {
     setDietary((current) => (current.trim() ? `${current.trim()}, ${value}` : value));
-    queueDraft();
   }
 
   function toggleMic() {
     if (isDictating) {
       dictation.stop();
-      queueDraft();
       return;
     }
     dictationBaseRef.current = prompt;
@@ -172,94 +225,244 @@ export function RecipeGenerationPanel({
     void dictation.start();
   }
 
-  async function copyDraft() {
-    const text = formatGatheringDraft(draft);
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      if (copyTimerRef.current) {
-        clearTimeout(copyTimerRef.current);
-      }
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1400);
-    } catch {
-      setCopied(false);
+  function showMoreRecipes() {
+    setVisibleRecipeCount((current) =>
+      nextGatheringRecipePickerCount(current, matchingRecipes.length),
+    );
+  }
+
+  function handleRecipePickerScroll(event: UIEvent<HTMLDivElement>) {
+    if (!hasMoreRecipes) {
+      return;
+    }
+
+    const list = event.currentTarget;
+    const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if (distanceFromBottom <= gatheringRecipePickerScrollThresholdPx) {
+      showMoreRecipes();
     }
   }
 
+  function makeSharePage() {
+    if (!canMakePage) return;
+
+    onGenerate({
+      dietary: dietary.trim(),
+      guestQuestion: guestQuestion.trim() || defaultGatheringBuildRequest.guestQuestion,
+      inviteeEmails: inviteeEmails.trim(),
+      prompt: prompt.trim() || defaultGatheringBuildRequest.prompt,
+      title: title.trim(),
+    });
+  }
+
   return (
-    <section className="overflow-hidden rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) shadow-[5px_5px_0_0_var(--color-ink)]">
-      {!started ? (
-        <GatheringStart
-          recipe={recipe}
-          selectedCount={selectedRecipes.length}
-          onStart={startGathering}
-        />
-      ) : (
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,0.72fr)]">
-          <div className="grid gap-5 p-4 md:p-5">
-            <GatheringHeader selectedCount={selectedRecipes.length} />
+    <section className="col-[1/-1] overflow-auto bg-(--color-canvas) max-[980px]:col-[1]">
+      <div className="mx-auto grid w-full max-w-[820px] gap-5 px-5 py-6 md:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button onClick={onBackToRecipes} size="sm" variant="ghost">
+            <ArrowLeft size={16} />
+            Recipes
+          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {selectedRecipes.length ? (
+              <span className="rounded-full border border-(--color-line) bg-(--color-panel) px-3 py-2 text-[12.5px] font-extrabold text-(--color-fog)">
+                {selectedRecipeLabel}
+              </span>
+            ) : null}
+            <Button
+              disabled={selectedRecipes.length === 0}
+              onClick={onClear}
+              size="sm"
+              variant="secondary"
+            >
+              Clear
+            </Button>
+            <Button
+              disabled={!canMakePage}
+              onClick={makeSharePage}
+              size="sm"
+              variant="primary"
+            >
+              <Sparkles size={15} />
+              Create page
+            </Button>
+          </div>
+        </div>
 
-            <RecipePicker
-              availableRecipes={availableRecipes}
-              selectedRecipeKeys={selectedRecipeKeys}
-              onToggle={toggleRecipe}
-            />
+        <header className="rounded-3xl border border-(--color-line) bg-(--color-panel) p-5 shadow-workspace md:p-6">
+          <div className="grid gap-2">
+            <div className="inline-flex w-fit items-center gap-2 text-[12px] font-extrabold uppercase text-(--color-sage)">
+              <Sparkles size={14} />
+              Gathering
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-[clamp(34px,7vw,58px)] font-bold leading-[0.94] text-(--color-ink)">
+              Create a gathering page
+            </h2>
+            <p className="m-0 max-w-[54ch] text-[15px] font-semibold leading-relaxed text-(--color-fog)">
+              Choose the recipes, add the guest notes, then review the page before you
+              publish or send invitations.
+            </p>
+          </div>
+        </header>
 
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex items-center gap-2 text-[13px] font-extrabold text-(--color-ink)">
-                  <Wand2 size={15} />
-                  AI brief
-                </div>
-                <span className="text-[12px] font-bold text-(--color-fog)">
-                  {draft.toneLabel}
-                </span>
-              </div>
+        <section className="grid gap-4 rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-[4px_4px_0_0_var(--color-ink)] md:p-5">
+          <StepHeader icon={<Utensils size={15} />} kicker="1" title="Choose recipes" />
 
-              <div className="flex flex-wrap gap-1.5">
-                {directionPresets.map((preset) => (
-                  <button
-                    className="rounded-full border border-(--color-line) bg-(--color-paper) px-2.5 py-1 text-xs font-bold text-(--color-ink) transition hover:border-(--color-ink) hover:bg-(--color-peach)"
-                    key={preset}
-                    onClick={() => appendDirection(preset)}
-                    type="button"
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative">
-                <textarea
-                  className="min-h-[112px] w-full resize-y rounded-xl border-2 border-(--color-line) bg-(--color-paper) px-3 py-3 pr-12 text-[14px] leading-relaxed text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Ask for a theme, audience, tone, format, or constraint."
-                  value={prompt}
-                />
+          {selectedRecipes.length ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedRecipes.map((recipe) => (
                 <button
-                  aria-label={
-                    isDictating ? "Stop dictation" : "Dictate with your voice"
-                  }
-                  className={
-                    isDictating
-                      ? "absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
-                      : "absolute top-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-lg border-2 border-(--color-ink) bg-(--color-panel) text-(--color-ink) hover:bg-(--color-peach)"
-                  }
-                  onClick={toggleMic}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) py-1 pr-2.5 pl-1 text-[12px] font-extrabold text-(--color-sage) hover:border-(--color-sage)"
+                  key={recipe.id}
+                  onClick={() => onToggleRecipe(recipe)}
                   type="button"
                 >
-                  {dictation.status === "connecting" ? (
-                    <Loader2 className="animate-spin" size={15} />
-                  ) : isDictating ? (
-                    <Square fill="currentColor" size={13} />
-                  ) : (
-                    <Mic size={15} />
-                  )}
+                  <RecipePillThumb recipe={recipe} />
+                  <span className="truncate">{recipe.title}</span>
+                  <X size={13} strokeWidth={3} />
                 </button>
-              </div>
+              ))}
+            </div>
+          ) : (
+            <p className="m-0 rounded-xl border border-dashed border-(--color-line) bg-(--color-paper) p-3 text-[13px] font-bold leading-relaxed text-(--color-fog)">
+              Start with one recipe. You can add more for a full menu.
+            </p>
+          )}
 
-              {isDictating ? (
-                <div className="flex items-center gap-2 text-xs font-bold text-(--color-tomato-dark)">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
+              size={15}
+            />
+            <input
+              className="min-h-12 w-full rounded-xl border-2 border-(--color-line) bg-(--color-paper) pr-3 pl-9 text-[15px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search recipes"
+              value={query}
+            />
+          </div>
+
+          <div
+            className="grid max-h-[460px] gap-2 overflow-auto pr-1"
+            onScroll={handleRecipePickerScroll}
+          >
+            {filteredRecipes.map((item) => {
+              const isSelected = selectedKeySet.has(item.id);
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={
+                    isSelected
+                      ? "grid min-h-[82px] grid-cols-[62px_minmax(0,1fr)_32px] items-center gap-3 rounded-xl border-2 border-(--color-sage) bg-(--color-sage-soft) p-2.5 text-left text-(--color-ink)"
+                      : "grid min-h-[82px] grid-cols-[62px_minmax(0,1fr)_32px] items-center gap-3 rounded-xl border border-(--color-line) bg-(--color-paper) p-2.5 text-left text-(--color-ink) hover:border-(--color-ink)"
+                  }
+                  key={item.id}
+                  onClick={() => onToggleRecipe(item)}
+                  type="button"
+                >
+                  <RecipeCardThumb recipe={item} selected={isSelected} />
+                  <span className="grid min-w-0 gap-1">
+                    <span className="line-clamp-2 text-[15px] font-extrabold leading-tight">
+                      {item.title}
+                    </span>
+                    <span className="line-clamp-1 text-[13px] leading-snug text-(--color-fog)">
+                      {item.description || item.servings || "OpenCook recipe"}
+                    </span>
+                  </span>
+                  <span
+                    className={
+                      isSelected
+                        ? "grid size-8 place-items-center rounded-lg bg-(--color-sage) text-white"
+                        : "grid size-8 place-items-center rounded-lg border border-(--color-line) text-transparent"
+                    }
+                  >
+                    <Check size={17} strokeWidth={3} />
+                  </span>
+                </button>
+              );
+            })}
+            {hasMoreRecipes ? (
+              <button
+                className="min-h-11 rounded-lg border border-dashed border-(--color-line) bg-(--color-paper) px-3 text-[13px] font-extrabold text-(--color-fog) hover:border-(--color-ink) hover:text-(--color-ink)"
+                onClick={showMoreRecipes}
+                type="button"
+              >
+                Load more recipes
+              </button>
+            ) : null}
+            {matchingRecipes.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-(--color-line) bg-(--color-paper) p-4 text-[13px] font-bold text-(--color-fog)">
+                No recipes match that search.
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="grid gap-4 rounded-2xl border border-(--color-line) bg-(--color-panel) p-4 md:p-5">
+          <StepHeader icon={<Sparkles size={15} />} kicker="2" title="Set the tone" />
+
+          <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+            Page title
+            <input
+              className="min-h-11 rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Saturday supper, birthday lunch..."
+              value={title}
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-1.5">
+            {directionPresets.map((preset) => (
+              <button
+                className="rounded-full border border-(--color-line) bg-(--color-paper) px-2.5 py-1 text-xs font-bold text-(--color-ink) transition hover:border-(--color-ink) hover:bg-(--color-peach)"
+                key={preset}
+                onClick={() => appendDirection(preset)}
+                type="button"
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <textarea
+              className="min-h-[132px] w-full resize-y rounded-xl border-2 border-(--color-line) bg-(--color-paper) px-3 py-3 pr-12 text-[15px] leading-relaxed text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder="Example: make it playful for children, with a dragon theme."
+              value={prompt}
+            />
+            <button
+              aria-label={isDictating ? "Stop dictation" : "Dictate with your voice"}
+              className={
+                isDictating
+                  ? "absolute top-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
+                  : "absolute top-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--color-ink) bg-(--color-panel) text-(--color-ink) hover:bg-(--color-peach)"
+              }
+              onClick={toggleMic}
+              type="button"
+            >
+              {dictation.status === "connecting" ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : isDictating ? (
+                <Square fill="currentColor" size={14} />
+              ) : (
+                <Mic size={16} />
+              )}
+            </button>
+          </div>
+
+          {isDictating || dictation.error ? (
+            <div
+              className={
+                dictation.error
+                  ? "text-xs font-bold text-(--color-tomato-dark)"
+                  : "flex items-center gap-2 text-xs font-bold text-(--color-tomato-dark)"
+              }
+            >
+              {dictation.error ? (
+                dictation.error
+              ) : (
+                <>
                   <span className="flex items-end gap-0.5" aria-hidden="true">
                     <span className="h-2 w-0.5 animate-pulse bg-(--color-tomato)" />
                     <span className="h-3.5 w-0.5 animate-pulse bg-(--color-tomato) [animation-delay:120ms]" />
@@ -267,570 +470,803 @@ export function RecipeGenerationPanel({
                     <span className="h-4 w-0.5 animate-pulse bg-(--color-tomato) [animation-delay:360ms]" />
                   </span>
                   {dictation.status === "connecting" ? "Connecting" : "Listening"}
-                </div>
-              ) : null}
+                </>
+              )}
             </div>
+          ) : null}
+        </section>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="grid gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
-                <div className="inline-flex items-center gap-2 text-[13px] font-extrabold text-(--color-ink)">
-                  <ClipboardList size={15} />
-                  Known dietary needs
-                </div>
-                <input
-                  className="min-h-10 rounded-lg border border-(--color-line) bg-(--color-panel) px-3 text-[14px] text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-                  onChange={(event) => setDietary(event.target.value)}
-                  placeholder="vegan, gluten-free, nut allergy..."
-                  value={dietary}
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {dietaryPresets.map((preset) => (
-                    <button
-                      className="rounded-full border border-(--color-line) px-2 py-0.5 text-[11.5px] font-bold text-(--color-fog) hover:border-(--color-sage) hover:text-(--color-sage)"
-                      key={preset}
-                      onClick={() => appendDietary(preset)}
-                      type="button"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        <section className="grid gap-4 rounded-2xl border border-(--color-line) bg-(--color-panel) p-4 md:p-5">
+          <StepHeader icon={<Users size={15} />} kicker="3" title="Add guest notes" />
 
-              <div className="grid gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
-                <div className="inline-flex items-center gap-2 text-[13px] font-extrabold text-(--color-ink)">
-                  <Users size={15} />
-                  Guest question
-                </div>
-                <textarea
-                  className="min-h-[88px] resize-none rounded-lg border border-(--color-line) bg-(--color-panel) px-3 py-2 text-[14px] text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-                  onChange={(event) => setGuestQuestion(event.target.value)}
-                  value={guestQuestion}
-                />
-              </div>
-            </div>
+          <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+            Dietary needs you already know
+            <input
+              className="min-h-11 rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setDietary(event.target.value)}
+              placeholder="vegan, gluten-free, nut allergy..."
+              value={dietary}
+            />
+          </label>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--color-line) pt-1">
-              <span className="inline-flex items-center gap-2 text-[12.5px] font-bold text-(--color-fog)">
-                <Sparkles size={14} />
-                Draft updates stay separate from the recipe.
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button onClick={queueDraft} size="sm" variant="secondary">
-                  <RefreshCcw size={15} />
-                  Update draft
-                </Button>
-                <Button onClick={() => void copyDraft()} size="sm" variant="secondary">
-                  {copied ? <Check size={15} /> : <Copy size={15} />}
-                  {copied ? "Copied" : "Copy draft"}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <GatheringPreview
-            activeTab={activeTab}
-            draft={draft}
-            drafting={drafting}
-            onTabChange={setActiveTab}
-          />
-        </div>
-      )}
-    </section>
-  );
-}
-
-function GatheringStart({
-  onStart,
-  recipe,
-  selectedCount,
-}: {
-  onStart: () => void;
-  recipe: Recipe;
-  selectedCount: number;
-}) {
-  return (
-    <div className="grid min-h-[300px] lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
-      <div className="grid content-between gap-7 p-5 md:p-6">
-        <div className="grid gap-3">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-(--color-line) bg-(--color-paper) px-3 py-1 text-[12px] font-extrabold uppercase tracking-normal text-(--color-sage)">
-            <Sparkles size={14} />
-            Gathering
-          </div>
-          <div className="grid max-w-[640px] gap-2">
-            <h2 className="font-[family-name:var(--font-display)] text-[clamp(28px,4vw,44px)] font-bold leading-[1] text-(--color-ink)">
-              Turn recipes into a shared table.
-            </h2>
-            <p className="max-w-[58ch] text-[15px] leading-relaxed text-(--color-fog)">
-              Start with the menu, then shape the invite, theme, and guest dietary notes
-              in one AI conversation.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={onStart} variant="primary">
-            <Wand2 size={16} />
-            Start gathering
-          </Button>
-          <span className="inline-flex min-h-10 items-center rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[13px] font-bold text-(--color-fog)">
-            {selectedCount} recipe selected
-          </span>
-        </div>
-      </div>
-
-      <div className="border-t-2 border-(--color-ink) bg-[linear-gradient(135deg,var(--color-sage-soft),var(--color-paper))] p-5 lg:border-t-0 lg:border-l-2">
-        <div className="flex h-full min-h-[240px] flex-col justify-between rounded-xl border-2 border-(--color-ink) bg-(--color-panel) p-4">
-          <div className="grid gap-3">
-            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-(--color-peach) px-2.5 py-1 text-[12px] font-extrabold text-(--color-tomato-dark)">
-              <Utensils size={13} />
-              Starter recipe
-            </span>
-            <div>
-              <h3 className="font-[family-name:var(--font-display)] text-2xl font-bold leading-tight text-(--color-ink)">
-                {recipe.title}
-              </h3>
-              {recipe.description ? (
-                <p className="mt-2 line-clamp-3 text-[13.5px] leading-relaxed text-(--color-fog)">
-                  {recipe.description}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-2 text-center">
-            <MiniArtifact icon={<FileText size={15} />} label="Invite" />
-            <MiniArtifact icon={<ClipboardList size={15} />} label="Menu" />
-            <MiniArtifact icon={<Users size={15} />} label="Guests" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniArtifact({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <span className="grid min-h-[66px] content-center justify-items-center gap-1 rounded-lg border border-(--color-line) bg-(--color-paper) px-2 text-[12px] font-extrabold text-(--color-ink)">
-      {icon}
-      {label}
-    </span>
-  );
-}
-
-function GatheringHeader({ selectedCount }: { selectedCount: number }) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <div className="mb-1 inline-flex items-center gap-2 text-[12px] font-extrabold uppercase text-(--color-sage)">
-          <Sparkles size={14} />
-          Gathering studio
-        </div>
-        <h2 className="font-[family-name:var(--font-display)] text-3xl font-bold leading-tight text-(--color-ink)">
-          Build the shared page
-        </h2>
-      </div>
-      <span className="inline-flex min-h-9 items-center gap-2 rounded-full border border-(--color-line) bg-(--color-paper) px-3 text-[12.5px] font-extrabold text-(--color-fog)">
-        <Utensils size={14} />
-        {selectedCount} recipe{selectedCount === 1 ? "" : "s"}
-      </span>
-    </div>
-  );
-}
-
-function RecipePicker({
-  availableRecipes,
-  onToggle,
-  selectedRecipeKeys,
-}: {
-  availableRecipes: Recipe[];
-  onToggle: (recipe: Recipe) => void;
-  selectedRecipeKeys: string[];
-}) {
-  const selected = new Set(selectedRecipeKeys);
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex items-center gap-2 text-[13px] font-extrabold text-(--color-ink)">
-          <Utensils size={15} />
-          Recipes
-        </div>
-        <span className="text-[12px] font-bold text-(--color-fog)">
-          Choose one or more
-        </span>
-      </div>
-      <div className="grid max-h-[190px] gap-2 overflow-auto pr-1 sm:grid-cols-2">
-        {availableRecipes.map((item) => {
-          const key = recipeKey(item);
-          const isSelected = selected.has(key);
-          return (
-            <button
-              aria-pressed={isSelected}
-              className={
-                isSelected
-                  ? "grid gap-1 rounded-xl border-2 border-(--color-sage) bg-(--color-sage-soft) p-3 text-left text-(--color-ink)"
-                  : "grid gap-1 rounded-xl border border-(--color-line) bg-(--color-paper) p-3 text-left text-(--color-ink) hover:border-(--color-ink)"
-              }
-              key={key}
-              onClick={() => onToggle(item)}
-              type="button"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span
-                  className={
-                    isSelected
-                      ? "flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-(--color-sage) text-white"
-                      : "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 border-(--color-line) text-transparent"
-                  }
-                >
-                  <Check size={13} strokeWidth={3} />
-                </span>
-                <span className="truncate text-[13.5px] font-extrabold">
-                  {item.title}
-                </span>
-              </span>
-              <span className="line-clamp-2 pl-7 text-[12px] leading-snug text-(--color-fog)">
-                {item.description || item.servings || "OpenCook recipe"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function GatheringPreview({
-  activeTab,
-  draft,
-  drafting,
-  onTabChange,
-}: {
-  activeTab: PreviewTab;
-  draft: GatheringDraft;
-  drafting: boolean;
-  onTabChange: (tab: PreviewTab) => void;
-}) {
-  return (
-    <aside className="relative min-h-[560px] border-t-2 border-(--color-ink) bg-(--color-rail) p-4 md:p-5 lg:border-t-0 lg:border-l-2">
-      <div className="sticky top-5 grid gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-2 text-[13px] font-extrabold text-(--color-ink)">
-            {drafting ? (
-              <Loader2 className="animate-spin text-(--color-tomato)" size={15} />
-            ) : (
-              <Sparkles className="text-(--color-tomato)" size={15} />
-            )}
-            {drafting ? "Generating gathering" : "Gathering preview"}
-          </div>
-          <Button disabled size="sm" variant="secondary">
-            <Share2 size={15} />
-            Create link
-          </Button>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) shadow-[3px_3px_0_0_var(--color-ink)]">
-          <div className="bg-(--color-sage) px-4 py-4 text-white">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11.5px] font-extrabold uppercase">
-              <span className="inline-flex items-center gap-1.5">
-                <CalendarDays size={13} />
-                Shared gathering
-              </span>
-              <span>{draft.recipeTitles.length} recipe menu</span>
-            </div>
-            <h3 className="mt-4 font-[family-name:var(--font-display)] text-[clamp(28px,5vw,42px)] font-bold leading-[0.96]">
-              {draft.title}
-            </h3>
-            <p className="mt-2 max-w-[36ch] text-[13.5px] leading-relaxed text-white/85">
-              {draft.subtitle}
-            </p>
-          </div>
-
-          <div className="flex border-b border-(--color-line) bg-(--color-paper) p-1">
-            {previewTabs.map((tab) => (
+          <div className="flex flex-wrap gap-1.5">
+            {dietaryPresets.map((preset) => (
               <button
-                aria-pressed={activeTab === tab.id}
-                className={
-                  activeTab === tab.id
-                    ? "flex-1 rounded-md bg-(--color-panel) px-3 py-2 text-[12px] font-extrabold text-(--color-ink) shadow-[inset_0_0_0_1px_var(--color-line)]"
-                    : "flex-1 rounded-md px-3 py-2 text-[12px] font-bold text-(--color-fog) hover:bg-(--color-panel) hover:text-(--color-ink)"
-                }
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                className="rounded-full border border-(--color-line) px-2 py-0.5 text-[11.5px] font-bold text-(--color-fog) hover:border-(--color-sage) hover:text-(--color-sage)"
+                key={preset}
+                onClick={() => appendDietary(preset)}
                 type="button"
               >
-                {tab.label}
+                {preset}
               </button>
             ))}
           </div>
 
-          <div className="relative min-h-[320px] p-4">
-            {drafting ? <DraftingVeil /> : null}
-            {activeTab === "invite" ? (
-              <InvitePreview draft={draft} />
-            ) : activeTab === "menu" ? (
-              <MenuPreview draft={draft} />
-            ) : (
-              <GuestPreview draft={draft} />
-            )}
-          </div>
-        </div>
+          <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+            Question for guests
+            <textarea
+              className="min-h-[92px] resize-none rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setGuestQuestion(event.target.value)}
+              value={guestQuestion}
+            />
+          </label>
 
-        <div className="rounded-xl border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[12.5px] font-bold leading-relaxed text-(--color-fog)">
-          Guests see the generated gathering and add preferences before the host
-          finalises the menu.
-        </div>
-      </div>
-    </aside>
-  );
-}
+          <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+            Invitee emails
+            <textarea
+              className="min-h-[108px] resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              onChange={(event) => setInviteeEmails(event.target.value)}
+              placeholder="name@example.com, friend@example.com"
+              value={inviteeEmails}
+            />
+          </label>
+        </section>
 
-function DraftingVeil() {
-  return (
-    <div className="absolute inset-3 z-10 grid place-items-center rounded-xl border border-(--color-line) bg-[rgba(255,250,243,0.86)] backdrop-blur-[2px]">
-      <div className="grid justify-items-center gap-2 text-center">
-        <Loader2 className="animate-spin text-(--color-tomato)" size={22} />
-        <span className="text-[13px] font-extrabold text-(--color-ink)">
-          Drafting invite, menu, and guest questions
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function InvitePreview({ draft }: { draft: GatheringDraft }) {
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-1">
-        <span className="text-[12px] font-extrabold uppercase text-(--color-tomato-dark)">
-          Invite
-        </span>
-        <h4 className="font-[family-name:var(--font-display)] text-2xl font-bold leading-tight text-(--color-ink)">
-          {draft.title}
-        </h4>
-      </div>
-      <p className="text-[14px] leading-relaxed text-(--color-ink)">
-        {draft.inviteBody}
-      </p>
-      <div className="grid gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
-        <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
-          Featured dishes
-        </span>
-        <div className="flex flex-wrap gap-1.5">
-          {draft.recipeTitles.map((title) => (
-            <span
-              className="rounded-full border border-(--color-line) bg-(--color-panel) px-2.5 py-1 text-[12px] font-bold text-(--color-ink)"
-              key={title}
-            >
-              {title}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MenuPreview({ draft }: { draft: GatheringDraft }) {
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-1">
-        <span className="text-[12px] font-extrabold uppercase text-(--color-sage)">
-          Menu
-        </span>
-        <p className="text-[14px] leading-relaxed text-(--color-ink)">
-          {draft.menuIntro}
-        </p>
-      </div>
-      <ol className="grid gap-2">
-        {draft.recipeTitles.map((title, index) => (
-          <li
-            className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 rounded-xl border border-(--color-line) bg-(--color-paper) p-3"
-            key={title}
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-(--color-ink) font-[family-name:var(--font-display)] text-sm font-bold text-(--color-ink)">
-              {index + 1}
+        <section className="grid gap-3 rounded-2xl border-2 border-(--color-ink) bg-[linear-gradient(135deg,#fffdf8,#fff2c9_58%,#e7f0df)] p-4 shadow-[4px_4px_0_0_var(--color-ink)] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl border-2 border-(--color-ink) bg-(--color-panel) text-(--color-tomato) shadow-[2px_2px_0_0_var(--color-ink)]">
+              <Sparkles size={19} />
             </span>
             <span className="grid gap-1">
-              <strong className="text-[14px] text-(--color-ink)">{title}</strong>
-              <span className="text-[12.5px] leading-snug text-(--color-fog)">
-                Matched to the gathering tone and guest notes.
+              <strong className="text-[16px] font-black leading-tight text-(--color-ink)">
+                Ready to review?
+              </strong>
+              <span className="text-[13px] font-bold leading-relaxed text-(--color-fog)">
+                {canMakePage
+                  ? `${selectedRecipeLabel}. OpenCook will prepare a draft page you can edit before publishing.`
+                  : "Choose at least one recipe to create a gathering page."}
               </span>
             </span>
-          </li>
-        ))}
-      </ol>
-      <p className="rounded-xl border border-(--color-line) bg-(--color-sage-soft) px-3 py-2 text-[12.5px] font-bold leading-relaxed text-(--color-sage)">
-        {draft.dietaryLine}
-      </p>
-    </div>
-  );
-}
-
-function GuestPreview({ draft }: { draft: GatheringDraft }) {
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-1">
-        <span className="text-[12px] font-extrabold uppercase text-(--color-royal)">
-          Guest preferences
-        </span>
-        <p className="text-[14px] leading-relaxed text-(--color-ink)">
-          {draft.guestQuestion}
-        </p>
+          </div>
+          <Button
+            disabled={!canMakePage}
+            onClick={makeSharePage}
+            size="lg"
+            variant="primary"
+          >
+            <Sparkles size={17} />
+            Create gathering page
+          </Button>
+        </section>
       </div>
-      <div className="grid gap-2">
-        <PreviewField label="Name" value="Alex" />
-        <PreviewField label="Dietary needs" value="No peanuts, prefers mild heat" />
-        <PreviewField label="Notes for the host" value={draft.hostNote} />
-      </div>
-      <Button disabled fullWidth variant="primary">
-        <Send size={15} />
-        Send preferences
-      </Button>
-    </div>
+    </section>
   );
 }
 
-function PreviewField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid gap-1 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
-      <span className="text-[11.5px] font-extrabold uppercase text-(--color-fog)">
-        {label}
-      </span>
-      <span className="text-[13.5px] text-(--color-ink)">{value}</span>
-    </div>
-  );
-}
-
-function uniqueRecipes(current: Recipe, recipes: Recipe[]) {
-  const byKey = new Map<string, Recipe>();
-  byKey.set(recipeKey(current), current);
-  for (const item of recipes) {
-    byKey.set(recipeKey(item), item);
-  }
-  return Array.from(byKey.values());
-}
-
-function recipeKey(recipe: Recipe) {
-  return recipe.id || `${recipe.title}-${recipe.createdAt}`;
-}
-
-function buildGatheringDraft({
-  dietary,
-  guestQuestion,
-  prompt,
-  recipes,
+export function GatheringGenerationPage({
+  onGenerateDraft,
+  onBackToRecipes,
+  onBackToSetup,
+  onPublish,
+  request,
+  selectedRecipes,
 }: {
-  dietary: string;
-  guestQuestion: string;
-  prompt: string;
-  recipes: Recipe[];
-}): GatheringDraft {
-  const recipeTitles = recipes.map((item) => item.title);
-  const mainRecipe = recipeTitles[0] ?? "the menu";
-  const extraCount = Math.max(0, recipeTitles.length - 1);
-  const direction = prompt.trim();
-  const lowerDirection = direction.toLowerCase();
-  const tone = gatheringTone(lowerDirection);
-  const dietaryText = dietary.trim();
-  const dishLine =
-    extraCount > 0
-      ? `${mainRecipe} plus ${extraCount} more dish${extraCount === 1 ? "" : "es"}`
-      : mainRecipe;
+  onGenerateDraft: (
+    request: GatheringBuildRequest,
+    selectedRecipes: Recipe[],
+  ) => Promise<GatheringDraftResult>;
+  onBackToRecipes: () => void;
+  onBackToSetup: () => void;
+  onPublish: (payload: PublishGatheringPayload) => Promise<PublishGatheringResult>;
+  request: GatheringBuildRequest;
+  selectedRecipes: Recipe[];
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [artifactError, setArtifactError] = useState("");
+  const [artifactJobs, setArtifactJobs] = useState<GatheringArtifactJob[]>([]);
+  const [artifactLoading, setArtifactLoading] = useState(true);
+  const [draft, setDraft] = useState<GatheringDraftResult | null>(null);
+  const [title, setTitle] = useState(request.title);
+  const [welcome, setWelcome] = useState("");
+  const [guestQuestion, setGuestQuestion] = useState(request.guestQuestion);
+  const [inviteeEmails, setInviteeEmails] = useState(request.inviteeEmails);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [publishedUrl, setPublishedUrl] = useState("");
+  const [draftLoading, setDraftLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const activeArtifact =
+    generationArtifacts[Math.min(activeIndex, generationArtifacts.length - 1)] ??
+    generationArtifacts[0]!;
+  const complete = Boolean(draft) && !draftLoading && !artifactLoading;
+  const progress = Math.round(
+    (Math.min(
+      complete ? generationArtifacts.length : activeIndex + 1,
+      generationArtifacts.length,
+    ) /
+      generationArtifacts.length) *
+      100,
+  );
+  const progressWidthClassName =
+    ["w-1/5", "w-2/5", "w-3/5", "w-4/5", "w-full"][
+      Math.min(
+        complete ? generationArtifacts.length - 1 : activeIndex,
+        generationArtifacts.length - 1,
+      )
+    ] ?? "w-1/5";
+  const inviteeEmailList = useMemo(
+    () => parseInviteeEmails(inviteeEmails),
+    [inviteeEmails],
+  );
+  const invalidEmails = useMemo(
+    () => inviteeEmailList.filter((email) => !looksLikeEmail(email)),
+    [inviteeEmailList],
+  );
+  const artifactJobsById = useMemo(
+    () =>
+      new Map<GatheringArtifactId, GatheringArtifactJob>(
+        artifactJobs.map((job) => [job.id, job]),
+      ),
+    [artifactJobs],
+  );
+  const canPublish =
+    Boolean(title.trim()) &&
+    Boolean(welcome.trim()) &&
+    Boolean(guestQuestion.trim()) &&
+    selectedRecipes.length > 0 &&
+    invalidEmails.length === 0 &&
+    !publishing &&
+    !draftLoading &&
+    !publishedUrl;
 
-  return {
-    dietaryLine: dietaryText
-      ? `Known needs: ${dietaryText}. Guests can add their own before you finalise the menu.`
-      : "Guests can add allergies, dislikes, and dietary needs before you finalise the menu.",
-    guestQuestion: guestQuestion.trim() || "Tell us anything we should avoid or adapt.",
-    hostNote: dietaryText
-      ? `Host sees ${dietaryText} beside the menu before shopping.`
-      : "Host sees each response beside the menu before shopping.",
-    inviteBody: `${tone.inviteLead} The table is built around ${dishLine}. ${tone.inviteClose}`,
-    menuIntro: `${tone.menuLead} ${recipeTitles.join(", ")}.`,
-    recipeTitles,
-    subtitle: `${tone.subtitle} Built from ${recipeTitles.length} recipe${
-      recipeTitles.length === 1 ? "" : "s"
-    } with guest preferences collected in the same place.`,
-    title: tone.title,
-    toneLabel: tone.label,
-  };
+  useEffect(() => {
+    let active = true;
+
+    setActiveIndex(0);
+    setArtifactError("");
+    setArtifactJobs([]);
+    setArtifactLoading(true);
+    setDraft(null);
+    setDraftLoading(true);
+    setPublishedUrl("");
+    setStatusMessage("");
+    setTitle(request.title);
+    setWelcome("");
+    setGuestQuestion(request.guestQuestion);
+    setInviteeEmails(request.inviteeEmails);
+
+    const progressTimer = window.setInterval(() => {
+      setActiveIndex((current) => {
+        if (current >= generationArtifacts.length - 1) {
+          return current;
+        }
+        return current + 1;
+      });
+    }, 950);
+
+    void (async () => {
+      try {
+        const result = await onGenerateDraft(request, selectedRecipes);
+        if (!active) return;
+        setDraft(result);
+        setTitle(result.title);
+        setWelcome(result.welcome);
+        setGuestQuestion(result.guestQuestion);
+        setActiveIndex(generationArtifacts.length - 1);
+      } catch (error) {
+        if (!active) return;
+        setStatusMessage(`Generating page copy failed: ${errorMessage(error)}`);
+      } finally {
+        if (active) {
+          setDraftLoading(false);
+          setArtifactLoading(false);
+        }
+        window.clearInterval(progressTimer);
+      }
+    })();
+
+    return () => {
+      active = false;
+      window.clearInterval(progressTimer);
+    };
+  }, [
+    onGenerateDraft,
+    request.dietary,
+    request.guestQuestion,
+    request.inviteeEmails,
+    request.prompt,
+    request.title,
+    selectedRecipes,
+  ]);
+
+  async function publish() {
+    if (!canPublish) {
+      if (invalidEmails.length) {
+        setStatusMessage(`Check ${invalidEmails[0]}.`);
+      }
+      return;
+    }
+
+    setPublishing(true);
+    setStatusMessage("Publishing and starting AI generation");
+    try {
+      const result = await onPublish({
+        dietary: request.dietary || undefined,
+        guestQuestion: guestQuestion.trim(),
+        inviteeEmails: inviteeEmailList,
+        prompt: request.prompt || undefined,
+        recipeIds: selectedRecipes.map((recipe) => recipe.id),
+        title: title.trim(),
+        welcome: welcome.trim(),
+      });
+      setPublishedUrl(result.url);
+      setStatusMessage(
+        inviteeEmailList.length
+          ? `Published and sent to ${inviteeEmailList.length} invitee${
+              inviteeEmailList.length === 1 ? "" : "s"
+            }.`
+          : "Published.",
+      );
+    } catch (error) {
+      setStatusMessage(`Publishing failed: ${errorMessage(error)}`);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function copyPublishedUrl() {
+    if (!publishedUrl) return;
+    await navigator.clipboard.writeText(publishedUrl);
+    setStatusMessage("Link copied.");
+  }
+
+  return (
+    <section className="col-[1/-1] overflow-auto bg-(--color-canvas) max-[980px]:col-[1]">
+      <div className="mx-auto grid w-full max-w-[780px] gap-5 px-5 py-6 md:px-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button onClick={onBackToSetup} size="sm" variant="ghost">
+            <ArrowLeft size={16} />
+            Edit
+          </Button>
+          <Button onClick={onBackToRecipes} size="sm" variant="secondary">
+            Recipes
+          </Button>
+        </div>
+
+        <section className="grid gap-6 rounded-3xl border-2 border-(--color-ink) bg-(--color-panel) p-5 shadow-[5px_5px_0_0_var(--color-ink)] md:p-7">
+          <div className="grid gap-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) px-3 py-1 text-[12px] font-extrabold uppercase text-(--color-sage)">
+              {complete ? (
+                <Check size={14} strokeWidth={3} />
+              ) : (
+                <Loader2 className="animate-spin" size={14} />
+              )}
+              {complete ? "Ready" : "Generating"}
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-[clamp(34px,7vw,62px)] font-bold leading-[0.94] text-(--color-ink)">
+              {publishedUrl
+                ? "Gathering published"
+                : complete
+                  ? "Review the page"
+                  : "Creating gathering page"}
+            </h2>
+            <p className="m-0 max-w-[54ch] text-[15px] font-semibold leading-relaxed text-(--color-fog)">
+              {publishedUrl
+                ? "Everyone has the same gathering page."
+                : complete
+                  ? "Edit the welcome before publishing and sending invitations."
+                  : activeArtifact.description}
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-3 text-[12px] font-extrabold uppercase text-(--color-fog)">
+              <span>{complete ? "Final package" : activeArtifact.label}</span>
+              <span>{progress}%</span>
+            </div>
+            <div
+              aria-label="Artifact generation progress"
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={progress}
+              className="h-3 overflow-hidden rounded-full border border-(--color-line) bg-(--color-paper)"
+              role="progressbar"
+            >
+              <div
+                className={`${progressWidthClassName} h-full rounded-full bg-(--color-tomato) transition-all duration-500`}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            {generationArtifacts.map((artifact, index) => {
+              const job =
+                artifact.id === "guest-page"
+                  ? undefined
+                  : artifactJobsById.get(artifact.id);
+              const status =
+                job?.status === "failed" ||
+                job?.status === "ready" ||
+                job?.status === "skipped" ||
+                job?.status === "submitted"
+                  ? job.status
+                  : artifactError && artifact.id !== "guest-page"
+                    ? "failed"
+                    : complete || index < activeIndex
+                      ? "done"
+                      : index === activeIndex && !complete
+                        ? "active"
+                        : "waiting";
+              return (
+                <GenerationArtifactRow
+                  artifact={artifact}
+                  job={job}
+                  key={artifact.label}
+                  status={status}
+                />
+              );
+            })}
+          </div>
+
+          {artifactError ? (
+            <p className="m-0 rounded-xl bg-[color-mix(in_oklch,var(--color-tomato)_10%,white)] px-3 py-2 text-[12.5px] font-bold leading-relaxed text-(--color-tomato-dark)">
+              {artifactError}
+            </p>
+          ) : null}
+
+          {complete ? (
+            <div className="grid gap-4 rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-[4px_4px_0_0_var(--color-ink)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) px-3 py-1 text-[12px] font-extrabold uppercase text-(--color-sage)">
+                  <Sparkles size={14} />
+                  {draft?.provider.provider === "workers-ai" ? "AI draft" : "Draft"}
+                </span>
+                <span className="text-[12px] font-bold text-(--color-fog)">
+                  {inviteeEmailList.length} invitee
+                  {inviteeEmailList.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+                Page title
+                <input
+                  className="min-h-11 rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+                  onChange={(event) => setTitle(event.target.value)}
+                  value={title}
+                />
+              </label>
+
+              <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+                Welcome
+                <textarea
+                  className="min-h-[150px] resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold leading-relaxed text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+                  onChange={(event) => setWelcome(event.target.value)}
+                  value={welcome}
+                />
+              </label>
+
+              <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
+                Guest question
+                <textarea
+                  className="min-h-[82px] resize-none rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+                  onChange={(event) => setGuestQuestion(event.target.value)}
+                  value={guestQuestion}
+                />
+              </label>
+
+              <InviteeEmailEditor
+                invalidEmails={invalidEmails}
+                onChange={setInviteeEmails}
+                value={inviteeEmails}
+              />
+
+              {invalidEmails.length ? (
+                <p className="m-0 rounded-lg bg-[color-mix(in_oklch,var(--color-tomato)_10%,white)] px-3 py-2 text-[12.5px] font-bold text-(--color-tomato-dark)">
+                  Check {invalidEmails[0]}.
+                </p>
+              ) : null}
+
+              {publishedUrl ? (
+                <div className="grid gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
+                  <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
+                    Shared link
+                  </span>
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                    <input
+                      className="min-h-10 min-w-0 rounded-lg border border-(--color-line) bg-(--color-panel) px-3 text-[13px] font-semibold text-(--color-ink)"
+                      readOnly
+                      value={publishedUrl}
+                    />
+                    <Button onClick={() => void copyPublishedUrl()} size="sm">
+                      <Clipboard size={15} />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--color-line) pt-3">
+                <div className="inline-flex items-center gap-2 text-[12.5px] font-bold text-(--color-fog)">
+                  <Mail size={15} />
+                  <span>{statusMessage || "Ready to publish"}</span>
+                </div>
+                <Button
+                  disabled={!canPublish}
+                  onClick={() => void publish()}
+                  size="lg"
+                  variant="primary"
+                >
+                  {publishing ? (
+                    <Loader2 className="animate-spin" size={17} />
+                  ) : (
+                    <Send size={17} />
+                  )}
+                  Publish gathering
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 rounded-2xl border border-(--color-line) bg-(--color-paper) p-4">
+            <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
+              Menu
+            </span>
+            <div className="grid gap-2">
+              {selectedRecipes.map((recipe) => (
+                <div
+                  className="grid min-h-[60px] grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-(--color-line) bg-(--color-panel) p-2"
+                  key={recipe.id}
+                >
+                  <RecipePillThumb recipe={recipe} />
+                  <span className="line-clamp-2 text-[13.5px] font-extrabold leading-tight text-(--color-ink)">
+                    {recipe.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 rounded-2xl border border-(--color-line) bg-(--color-paper) p-4">
+            <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
+              Note for guests
+            </span>
+            <p className="m-0 text-[14px] font-semibold leading-relaxed text-(--color-ink)">
+              {request.prompt || defaultGatheringBuildRequest.prompt}
+            </p>
+            {request.dietary ? (
+              <p className="m-0 rounded-lg bg-(--color-sage-soft) px-2.5 py-2 text-[12.5px] font-bold leading-relaxed text-(--color-sage)">
+                Dietary notes: {request.dietary}
+              </p>
+            ) : null}
+            <p className="m-0 text-[13px] font-semibold leading-relaxed text-(--color-fog)">
+              Guests will be asked:{" "}
+              {request.guestQuestion || defaultGatheringBuildRequest.guestQuestion}
+            </p>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
 }
 
-function gatheringTone(direction: string) {
-  if (direction.includes("dragon")) {
-    return {
-      inviteClose:
-        "Expect bold names, a little theatre, and food that still makes sense.",
-      inviteLead: "You are invited to a firelit feast.",
-      label: "Dragon theme",
-      menuLead: "A dramatic menu with storybook names:",
-      subtitle: "A dragon-table gathering.",
-      title: "Dragon Table",
-    };
-  }
-
-  if (
-    direction.includes("children") ||
-    direction.includes("child") ||
-    direction.includes("kid")
-  ) {
-    return {
-      inviteClose: "The wording stays playful, clear, and easy for families to answer.",
-      inviteLead: "Bring small appetites and big opinions.",
-      label: "Children first",
-      menuLead: "A friendly menu with simple dish names:",
-      subtitle: "A gathering shaped for children and families.",
-      title: "Little Table",
-    };
-  }
-
-  if (direction.includes("formal") || direction.includes("printed")) {
-    return {
-      inviteClose:
-        "The copy is polished enough to print, forward, or place at the table.",
-      inviteLead: "Please join us for a composed supper.",
-      label: "Formal menu",
-      menuLead: "A restrained printed menu featuring:",
-      subtitle: "A refined gathering page.",
-      title: "Supper Menu",
-    };
-  }
-
-  if (direction.includes("garden") || direction.includes("birthday")) {
-    return {
-      inviteClose: "The page keeps the tone bright, relaxed, and easy to share.",
-      inviteLead: "Come over for a sunny table and a generous plate.",
-      label: "Garden gathering",
-      menuLead: "A bright menu for sharing:",
-      subtitle: "A relaxed outdoor-style gathering.",
-      title: "Garden Table",
-    };
-  }
-
-  return {
-    inviteClose: "Reply with anything the host should know before the menu is final.",
-    inviteLead: "You are invited to share a meal.",
-    label: "Warm and simple",
-    menuLead: "A clear menu built from:",
-    subtitle: "A shareable gathering page.",
-    title: "Shared Table",
-  };
-}
-
-function formatGatheringDraft(draft: GatheringDraft) {
+function parseInviteeEmails(value: string) {
   return [
-    draft.title,
-    draft.subtitle,
-    "",
-    "Invite",
-    draft.inviteBody,
-    "",
-    "Menu",
-    ...draft.recipeTitles.map((title, index) => `${index + 1}. ${title}`),
-    "",
-    "Guest preferences",
-    draft.guestQuestion,
-    draft.dietaryLine,
-  ].join("\n");
+    ...new Set(
+      value
+        .split(/[\s,;]+/)
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function looksLikeEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function formatInviteeEmails(emails: string[]) {
+  return parseInviteeEmails(emails.join("\n")).join("\n");
+}
+
+function InviteeEmailEditor({
+  invalidEmails,
+  onChange,
+  value,
+}: {
+  invalidEmails: string[];
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const inputId = useId();
+  const [draftEmail, setDraftEmail] = useState("");
+  const emails = useMemo(() => parseInviteeEmails(value), [value]);
+  const invalidEmailSet = useMemo(() => new Set(invalidEmails), [invalidEmails]);
+  const hasInvalidEmail = invalidEmails.length > 0;
+
+  function commitEmails(rawValue = draftEmail) {
+    const nextEmails = parseInviteeEmails(rawValue);
+    if (nextEmails.length === 0) return;
+
+    onChange(formatInviteeEmails([...emails, ...nextEmails]));
+    setDraftEmail("");
+  }
+
+  function removeEmail(email: string) {
+    onChange(formatInviteeEmails(emails.filter((item) => item !== email)));
+  }
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label
+          className="text-[13px] font-extrabold text-(--color-ink)"
+          htmlFor={inputId}
+        >
+          Invitee emails
+        </label>
+        <span
+          className={
+            hasInvalidEmail
+              ? "rounded-full border border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] px-2 py-0.5 text-[11.5px] font-extrabold text-(--color-tomato-dark)"
+              : "rounded-full border border-(--color-line) bg-(--color-paper) px-2 py-0.5 text-[11.5px] font-extrabold text-(--color-fog)"
+          }
+        >
+          {emails.length} invitee{emails.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div
+        className={
+          hasInvalidEmail
+            ? "rounded-lg border-2 border-(--color-tomato) bg-(--color-paper) p-2"
+            : "rounded-lg border border-(--color-line) bg-(--color-paper) p-2 focus-within:border-(--color-ink)"
+        }
+      >
+        <div className="flex min-h-[94px] flex-wrap content-start items-start gap-2">
+          {emails.map((email) => {
+            const invalid = invalidEmailSet.has(email);
+            return (
+              <span
+                className={
+                  invalid
+                    ? "inline-flex max-w-full items-center gap-1.5 rounded-full border border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] py-1 pr-1 pl-2 text-[12.5px] font-extrabold text-(--color-tomato-dark)"
+                    : "inline-flex max-w-full items-center gap-1.5 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) py-1 pr-1 pl-2 text-[12.5px] font-extrabold text-(--color-sage)"
+                }
+                key={email}
+              >
+                <Mail className="shrink-0" size={13} />
+                <span className="max-w-[230px] truncate">{email}</span>
+                <button
+                  aria-label={`Remove ${email}`}
+                  className={
+                    invalid
+                      ? "grid size-6 shrink-0 place-items-center rounded-full text-(--color-tomato-dark) hover:bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)]"
+                      : "grid size-6 shrink-0 place-items-center rounded-full text-(--color-sage) hover:bg-(--color-panel)"
+                  }
+                  onClick={() => removeEmail(email)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  title="Remove invitee"
+                  type="button"
+                >
+                  <X size={13} strokeWidth={3} />
+                </button>
+              </span>
+            );
+          })}
+
+          <div className="flex min-h-10 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-dashed border-(--color-line) bg-(--color-panel) px-2">
+            <Mail className="shrink-0 text-(--color-fog)" size={15} />
+            <input
+              className="min-h-9 min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog)"
+              id={inputId}
+              onBlur={() => commitEmails()}
+              onChange={(event) => setDraftEmail(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === "," || event.key === ";") {
+                  event.preventDefault();
+                  commitEmails();
+                }
+              }}
+              onPaste={(event) => {
+                const pastedText = event.clipboardData.getData("text");
+                if (!pastedText.trim()) return;
+
+                event.preventDefault();
+                commitEmails(`${draftEmail} ${pastedText}`);
+              }}
+              placeholder="name@example.com"
+              value={draftEmail}
+            />
+            <button
+              aria-label="Add invitee"
+              className="grid size-8 shrink-0 place-items-center rounded-lg border border-(--color-line) bg-(--color-paper) text-(--color-ink) transition enabled:hover:border-(--color-ink) enabled:hover:bg-(--color-peach) disabled:opacity-45"
+              disabled={!draftEmail.trim()}
+              onClick={() => commitEmails()}
+              onMouseDown={(event) => event.preventDefault()}
+              title="Add invitee"
+              type="button"
+            >
+              <UserPlus size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GenerationArtifactRow({
+  artifact,
+  job,
+  status,
+}: {
+  artifact: GenerationArtifact;
+  job?: GatheringArtifactJob;
+  status: GenerationArtifactStatus;
+}) {
+  const Icon = artifact.Icon;
+  const audioUrl =
+    status === "ready" && artifact.id === "voiceover" ? job?.audioUrl : undefined;
+  const detail =
+    job?.status === "ready"
+      ? `${job.provider === "elevenlabs" ? "Generated with ElevenLabs" : "Generated"}${
+          job.model ? ` (${job.model})` : ""
+        }`
+      : job?.status === "submitted"
+        ? `${job.model ? `Submitted to ${job.model}` : "Submitted"}${
+            job.requestId ? ` (${job.requestId.slice(0, 8)})` : ""
+          }`
+        : job?.error ||
+          (status === "failed" ? "Submission failed." : artifact.description);
+  const badgeLabel =
+    status === "done"
+      ? "Done"
+      : status === "active"
+        ? "Now"
+        : status === "ready"
+          ? "Ready"
+          : status === "submitted"
+            ? "Submitted"
+            : status === "failed"
+              ? "Failed"
+              : status === "skipped"
+                ? "Skipped"
+                : "Queued";
+
+  return (
+    <div
+      className={
+        status === "failed"
+          ? "grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] p-3"
+          : status === "active"
+            ? "grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] p-3"
+            : status === "ready" || status === "submitted"
+              ? "grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-(--color-sage-line) bg-(--color-sage-soft) p-3"
+              : "grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-(--color-line) bg-(--color-paper) p-3"
+      }
+    >
+      <span
+        className={
+          status === "done" || status === "ready" || status === "submitted"
+            ? "grid size-10 place-items-center rounded-xl bg-(--color-sage) text-white"
+            : status === "failed"
+              ? "grid size-10 place-items-center rounded-xl bg-(--color-tomato) text-white"
+              : "grid size-10 place-items-center rounded-xl bg-(--color-panel) text-(--color-sage)"
+        }
+      >
+        {status === "done" || status === "ready" || status === "submitted" ? (
+          <Check size={18} strokeWidth={3} />
+        ) : status === "failed" ? (
+          <X size={18} strokeWidth={3} />
+        ) : status === "active" ? (
+          <Loader2 className="animate-spin" size={18} />
+        ) : (
+          <Icon size={18} />
+        )}
+      </span>
+      <div className="grid min-w-0 gap-1">
+        <span className="text-[14px] font-extrabold leading-tight text-(--color-ink)">
+          {artifact.label}
+        </span>
+        <span className="line-clamp-2 text-[12.5px] font-semibold leading-snug text-(--color-fog)">
+          {detail}
+        </span>
+        {audioUrl ? (
+          <audio
+            className="mt-1 h-9 w-full max-w-[380px]"
+            controls
+            preload="metadata"
+            src={audioUrl}
+          />
+        ) : null}
+      </div>
+      <span className="min-w-[74px] justify-self-end rounded-full border border-(--color-line) bg-(--color-panel) px-2.5 py-1 text-center text-[11.5px] font-extrabold uppercase text-(--color-fog)">
+        {badgeLabel}
+      </span>
+    </div>
+  );
+}
+
+function StepHeader({
+  icon,
+  kicker,
+  title,
+}: {
+  icon: ReactNode;
+  kicker: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full border border-(--color-line) bg-(--color-paper) text-[13px] font-extrabold text-(--color-sage)">
+        {kicker}
+      </span>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="text-(--color-sage)">{icon}</span>
+        <h3 className="font-[family-name:var(--font-display)] text-2xl font-bold leading-tight text-(--color-ink)">
+          {title}
+        </h3>
+      </div>
+    </div>
+  );
+}
+
+function RecipeCardThumb({ recipe, selected }: { recipe: Recipe; selected: boolean }) {
+  const image = recipeImagesOf(recipe)[0];
+  const url = displayImageUrl(image?.url);
+
+  return (
+    <span className="relative h-[60px] w-[60px] overflow-hidden rounded-lg border border-(--color-line) bg-(--color-soft)">
+      {url ? (
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          decoding="async"
+          loading="lazy"
+          src={url}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-(--color-sage)">
+          <Utensils size={20} />
+        </span>
+      )}
+      {selected ? (
+        <span className="absolute top-1 left-1 grid size-5 place-items-center rounded-md bg-(--color-sage) text-white shadow-[0_1px_2px_rgba(0,0,0,0.18)]">
+          <Check size={13} strokeWidth={3} />
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function RecipePillThumb({ recipe }: { recipe: Recipe }) {
+  const image = recipeImagesOf(recipe)[0];
+  const url = displayImageUrl(image?.url);
+
+  return (
+    <span className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-(--color-sage-line) bg-(--color-panel)">
+      {url ? (
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          decoding="async"
+          loading="lazy"
+          src={url}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-(--color-sage)">
+          <Utensils size={13} />
+        </span>
+      )}
+    </span>
+  );
 }
