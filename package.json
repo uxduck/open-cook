@@ -16,6 +16,8 @@
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
     "test": "pnpm --recursive test",
+    "fixture:stashcook": "node scripts/generate-stashcook-import-fixture.mjs",
+    "fixture:stashcook:import:local": "node scripts/generate-stashcook-import-fixture.mjs && STASHCOOK_EXPORT_DIR=artifacts/stashcook-export/dev-fixture node scripts/import-stashcook-export-to-d1.mjs",
     "generate:food-assets": "node tools/generate-food-assets.mjs",
     "review:food-assets": "python3 tools/review-food-assets.py",
     "format": "oxfmt --write . && oxlint --fix .",

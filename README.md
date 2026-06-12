@@ -113,6 +113,30 @@ pnpm --filter @open-cook/api db:seed:local
 That seed file should stay dev-only until recipe ownership exists, then it can be
 changed to attach rows to a specific Better Auth user.
 
+For bulk import testing without private recipe data, generate a deterministic
+StashCook-style export fixture:
+
+```bash
+pnpm fixture:stashcook
+```
+
+This writes `artifacts/stashcook-export/dev-fixture/recipes.json` with 132 fake
+recipes. The `artifacts/` directory is ignored by Git, so the fixture is rebuilt
+locally instead of committed. To exercise the browser flow, run the API and web
+app, create or sign into a local account, then upload that `recipes.json` file
+from the app's StashCook export import control.
+
+To insert the same fixture directly into a local D1 database, first make sure
+the local database has a Better Auth user, then run:
+
+```bash
+pnpm fixture:stashcook:import:local
+```
+
+If your local `.wrangler` state has multiple D1 database files or multiple
+users, set `OPEN_COOK_D1_DB` and/or `OPEN_COOK_USER_ID` before running the
+import script.
+
 ## API Shape
 
 Core endpoints:
@@ -183,6 +207,10 @@ or:
 ```sh
 STASHCOOK_COOKIE="..." node scripts/stashcook-export.mjs
 ```
+
+Developers can test the same upload flow without a real StashCook account by
+running `pnpm fixture:stashcook` and uploading
+`artifacts/stashcook-export/dev-fixture/recipes.json`.
 
 Public bundle inspection on 2026-05-14 showed these relevant StashCook endpoints:
 
