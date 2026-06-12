@@ -187,11 +187,27 @@ Core endpoints:
 
 ## Codex Usage
 
+This repo includes a Codex plugin at `plugins/opencook` and a repo-local
+marketplace at `.agents/plugins/marketplace.json`. The plugin ID is `opencook`
+and the displayed product name is OpenCook.
+
+For authenticated APIs, prefer a Better Auth bearer session token:
+
+```sh
+OPEN_COOK_API_BASE=https://open-cook.com
+OPEN_COOK_AUTH_TOKEN=your-better-auth-session-token
+```
+
+For local development, `OPEN_COOK_API_BASE` defaults to
+`http://127.0.0.1:8787`. The plugin can also reuse the newest unexpired local D1
+Better Auth session when no explicit token or cookie is configured.
+
 The intended demo loop is:
 
 1. Run OpenCook locally or use the hosted Vercel web app backed by the API
    Worker.
-2. Ask Codex to inspect `http://localhost:8787/openapi.json`.
+2. Install the `opencook` Codex plugin or ask Codex to inspect
+   `http://localhost:8787/openapi.json`.
 3. Ask Codex to call the API to add, edit, import, or export recipes.
 4. Ask Codex to build a new workflow on top of your recipe data, such as a meal
    plan, shopping list, nutrition review, cookbook Markdown export, or a custom

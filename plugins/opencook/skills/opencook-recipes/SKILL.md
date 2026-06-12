@@ -1,5 +1,5 @@
 ---
-name: open-cook-recipes
+name: opencook-recipes
 description: Use OpenCook recipe tools to find recipes, add recipes from images or text, and safely revise existing recipes.
 ---
 
@@ -26,4 +26,4 @@ Use this skill when the user asks about their OpenCook recipes, wants to add a r
 
 ## API Setup
 
-The MCP server defaults to `http://127.0.0.1:8787`. If OpenCook is running elsewhere, set `OPEN_COOK_API_BASE`. If the API requires auth, set `OPEN_COOK_AUTH_TOKEN` or `OPEN_COOK_COOKIE`. The bridge reads these variables from the process environment, then from the repo's ignored `.env.local` and `.env` files.
+The MCP server defaults to `http://127.0.0.1:8787`. If OpenCook is running elsewhere, set `OPEN_COOK_API_BASE`. If the API requires auth, use `OPEN_COOK_AUTH_TOKEN` with a Better Auth bearer session token. `OPEN_COOK_COOKIE` is a fallback for local debugging. The bridge reads these variables from the process environment, then from the repo's ignored `.env.local` and `.env` files.

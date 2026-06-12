@@ -1,0 +1,20 @@
+{
+  "name": "opencook",
+  "interface": {
+    "displayName": "OpenCook"
+  },
+  "plugins": [
+    {
+      "name": "opencook",
+      "source": {
+        "source": "local",
+        "path": "./plugins/opencook"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

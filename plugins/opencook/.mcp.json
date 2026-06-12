@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "open-cook": {
+    "opencook": {
       "command": "sh",
       "args": ["./scripts/run-open-cook-mcp.sh"],
       "env": {

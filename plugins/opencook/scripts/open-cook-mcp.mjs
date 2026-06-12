@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SERVER_NAME = "open-cook";
+const SERVER_NAME = "opencook";
 const SERVER_VERSION = "0.1.0";
 const DEFAULT_API_BASE = "http://127.0.0.1:8787";
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -399,7 +399,7 @@ async function apiRequest(path, options = {}) {
       response.status === 401 &&
       !process.env.OPEN_COOK_AUTH_TOKEN &&
       !process.env.OPEN_COOK_COOKIE
-        ? "Unauthorized. Set OPEN_COOK_AUTH_TOKEN to a Better Auth bearer session token, set OPEN_COOK_COOKIE to a valid OpenCook browser session cookie, or sign in to the local OpenCook app so the MCP bridge can reuse the local dev session."
+        ? "Unauthorized. Set OPEN_COOK_AUTH_TOKEN to a Better Auth bearer session token. For local debugging you can set OPEN_COOK_COOKIE to a valid OpenCook browser session cookie or sign in to the local OpenCook app so the MCP bridge can reuse the local dev session."
         : typeof data === "object" && data && "error" in data
           ? data.error
           : response.statusText;
