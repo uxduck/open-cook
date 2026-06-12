@@ -22,7 +22,12 @@ import {
   RecipeAiUnavailableError,
 } from "../../ai/recipeAiService";
 import { requireAuthMiddleware } from "../auth/requireAuth";
-import { assertRestyleAllowed, BillingLimitError } from "../billing/entitlements";
+import {
+  AI_PAYWALL_DISABLED,
+  assertRestyleAllowed,
+  BillingLimitError,
+  ensureFreeMonthlyCredits,
+} from "../billing/entitlements";
 import { createPaidBilling, sendUsageSignal } from "../billing/paidClient";
 
 const recipeRemixRequestSchema = v.object({
@@ -85,20 +90,24 @@ export const aiApp = new Hono<Env>()
 
       // A recipe restyle is a metered feature (free: 3/mo, Pro: 20/mo, plus
       // credit-pack overage. All tracked in Paid). Every remix counts as one.
+      // While AI_PAYWALL_DISABLED, skip billing entirely (no check, no meter).
       const billing = createPaidBilling(c.env);
-      try {
-        await assertRestyleAllowed(billing, c.var.user!.id);
-      } catch (error) {
-        if (error instanceof BillingLimitError) {
-          return c.json(
-            {
-              error: "You're out of restyle credits. Upgrade or top up to continue.",
-              reason: error.reason,
-            },
-            402,
-          );
+      if (!AI_PAYWALL_DISABLED) {
+        try {
+          await ensureFreeMonthlyCredits(billing, c.var.db, c.var.user!.id);
+          await assertRestyleAllowed(billing, c.var.user!.id);
+        } catch (error) {
+          if (error instanceof BillingLimitError) {
+            return c.json(
+              {
+                error: "You're out of restyle credits. Upgrade or top up to continue.",
+                reason: error.reason,
+              },
+              402,
+            );
+          }
+          throw error;
         }
-        throw error;
       }
 
       try {
@@ -110,7 +119,7 @@ export const aiApp = new Hono<Env>()
           recipe,
           theme: input.theme,
         });
-        if (billing) {
+        if (billing && !AI_PAYWALL_DISABLED) {
           c.executionCtx.waitUntil(
             sendUsageSignal(billing, {
               eventName: "restyle_generated",

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AccountRouteImport } from './routes/account'
@@ -25,6 +26,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/app'
     | '/login'
+    | '/onboarding'
     | '/pricing'
     | '/register'
     | '/r/$ownerId/$id'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/app'
     | '/login'
+    | '/onboarding'
     | '/pricing'
     | '/register'
     | '/r/$ownerId/$id'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/app'
     | '/login'
+    | '/onboarding'
     | '/pricing'
     | '/register'
     | '/r/$ownerId/$id'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AppRoute: typeof AppRoute
   LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
   ROwnerIdIdRoute: typeof ROwnerIdIdRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AppRoute: AppRoute,
   LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
   ROwnerIdIdRoute: ROwnerIdIdRoute,

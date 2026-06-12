@@ -6,6 +6,7 @@ import { validator } from "hono-openapi";
 import type { Env } from "../../AppContext";
 import { user as userTable } from "../../db/schema";
 import { requireAuthMiddleware } from "../auth/requireAuth";
+import { ensureFreeMonthlyCredits } from "./entitlements";
 import { createPaidBilling, type PaidBilling } from "./paidClient";
 
 const checkoutRequestSchema = v.object({
@@ -14,7 +15,10 @@ const checkoutRequestSchema = v.object({
 
 const CREDITS_NOT_CONFIGURED = "Billing is not configured." as const;
 
-function websiteOrigin(c: { env: Env["Bindings"]; req: { url: string; header: (name: string) => string | undefined } }): string {
+function websiteOrigin(c: {
+  env: Env["Bindings"];
+  req: { url: string; header: (name: string) => string | undefined };
+}): string {
   const configured = c.env.WEBSITE_URL?.replace(/\/$/, "");
   if (configured) return configured;
   const origin = c.req.header("Origin");
@@ -45,14 +49,24 @@ export const billingApp = new Hono<Env>()
       const billing = createPaidBilling(c.env);
 
       if (!billing) {
-        return c.json({ plan: user.plan ?? "free", balances: [], billingEnabled: false });
+        return c.json({
+          plan: user.plan ?? "free",
+          balances: [],
+          billingEnabled: false,
+        });
       }
 
-      let balances: Array<{ currencyKey: string; available: number; total: number }> = [];
+      // Top up the free monthly allowance before reading balances so a new
+      // user's first visit already shows their free credits.
+      await ensureFreeMonthlyCredits(billing, c.var.db, user.id);
+
+      let balances: Array<{ currencyKey: string; available: number; total: number }> =
+        [];
       try {
-        const result = await billing.client.customers.getCustomerCreditBalancesByExternalId(
-          { externalId: user.id },
-        );
+        const result =
+          await billing.client.customers.getCustomerCreditBalancesByExternalId({
+            externalId: user.id,
+          });
         balances = (result.data ?? []).map((pool) => ({
           currencyKey: pool.currencyKey,
           available: pool.available ?? 0,
@@ -141,20 +155,31 @@ export const billingApp = new Hono<Env>()
 // --- Webhook (mounted separately in index.ts, no auth) -----------------------
 
 /**
- * Verify a Paid webhook against `PAID_WEBHOOK_SECRET` (HMAC-SHA256 over the raw
- * body, hex-encoded). The exact header name/scheme is confirmed against a Paid
- * `testWebhook` delivery; we accept the common candidates.
+ * Verify a Paid webhook against `PAID_WEBHOOK_SECRET` (the org's signing
+ * secret from Settings > Webhooks). Paid sends
+ * `x-webhook-signature: t=<unix_ms>,s=<base64>` where `s` is the
+ * HMAC-SHA256 of `<t>.<raw_body>`. Deliveries older than five minutes are
+ * rejected to prevent replay. https://docs.paid.ai/documentation/billing/webhooks
  */
 async function verifyPaidSignature(
   rawBody: string,
   headers: Headers,
   secret: string,
 ): Promise<boolean> {
-  const provided =
-    headers.get("webhook-signature") ??
-    headers.get("paid-signature") ??
-    headers.get("x-paid-signature");
-  if (!provided) return false;
+  const header = headers.get("x-webhook-signature");
+  if (!header) return false;
+
+  // Split each key=value on the FIRST `=` only — the signature is base64 and
+  // its trailing `=` padding must be preserved.
+  const parts = new Map<string, string>();
+  for (const kv of header.split(",")) {
+    const i = kv.indexOf("=");
+    if (i > 0) parts.set(kv.slice(0, i).trim(), kv.slice(i + 1));
+  }
+  const timestamp = Number(parts.get("t"));
+  const provided = parts.get("s");
+  if (!timestamp || !provided) return false;
+  if (Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) return false;
 
   const key = await crypto.subtle.importKey(
     "raw",
@@ -164,12 +189,14 @@ async function verifyPaidSignature(
     ["sign"],
   );
   const mac = new Uint8Array(
-    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody)),
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${timestamp}.${rawBody}`),
+    ),
   );
-  const expected = [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
-  // The header may be prefixed (e.g. "sha256=..."); compare on the hex suffix.
-  const candidate = provided.includes("=") ? provided.split("=").pop()! : provided;
-  return timingSafeEqual(expected, candidate.trim().toLowerCase());
+  const expected = btoa(String.fromCharCode(...mac));
+  return timingSafeEqual(expected, provided);
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -185,12 +212,22 @@ type ParsedEvent = {
   target: string | undefined;
 };
 
-/** Pull the event name and our checkout metadata out of the (loosely-typed) payload. */
+/**
+ * Pull the event name and our checkout metadata out of the delivery envelope:
+ * `{ event, timestamp, data: { <payloadKey>: {...} } }` where the payload key
+ * is `checkout` for checkout events, `payment` for payment events, etc. The
+ * `{userId, target}` metadata we set at checkout is echoed on the checkout
+ * object.
+ */
 function parseEvent(payload: unknown): ParsedEvent {
   const root = (payload ?? {}) as Record<string, unknown>;
-  const name = (root.eventName ?? root.type ?? root.event) as string | undefined;
-  const data = (root.data ?? root.object ?? root) as Record<string, unknown>;
-  const metadata = (data.metadata ?? {}) as Record<string, unknown>;
+  const name = (root.event ?? root.eventName ?? root.type) as string | undefined;
+  const data = (root.data ?? {}) as Record<string, unknown>;
+  const inner = (data.checkout ?? data.payment ?? data.invoice ?? data) as Record<
+    string,
+    unknown
+  >;
+  const metadata = (inner.metadata ?? {}) as Record<string, unknown>;
   return {
     name,
     userId: metadata.userId as string | undefined,

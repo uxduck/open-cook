@@ -15,8 +15,17 @@ export type PaidConfigEnv = {
   PAID_PRODUCT_CREDITS_10_ID?: string;
 };
 
+// The v2 REST API exposes endpoints (credit grants) that @paid-ai/paid-node
+// does not wrap yet; those are called directly with the same API key.
+const PAID_API_BASE = "https://api.agentpaid.io/api/v2";
+
+/** Key of the org's credit currency, created by scripts/paid-setup-pricing.mjs.
+ * The same key exists in both the prod and test Paid orgs. */
+export const CREDIT_CURRENCY_KEY = "opencook_credits";
+
 export type PaidBilling = {
   client: PaidClient;
+  apiKey: string;
   productExternalId: string | undefined;
   productIds: {
     pro: string | undefined;
@@ -38,6 +47,7 @@ export function createPaidBilling(env: PaidConfigEnv): PaidBilling | null {
 
   return {
     client: new PaidClient({ token: env.PAID_API_KEY }),
+    apiKey: env.PAID_API_KEY,
     productExternalId: env.PAID_PRODUCT_EXTERNAL_ID,
     productIds: {
       pro: env.PAID_PRODUCT_PRO_ID,
@@ -53,13 +63,11 @@ export async function getAvailableCredits(
   externalId: string,
 ): Promise<number> {
   try {
-    const balances = await billing.client.customers.getCustomerCreditBalancesByExternalId({
-      externalId,
-    });
-    return (balances.data ?? []).reduce(
-      (sum, pool) => sum + (pool.available ?? 0),
-      0,
-    );
+    const balances =
+      await billing.client.customers.getCustomerCreditBalancesByExternalId({
+        externalId,
+      });
+    return (balances.data ?? []).reduce((sum, pool) => sum + (pool.available ?? 0), 0);
   } catch (error) {
     // A missing customer (404) means no grants yet → no credits.
     console.warn("[billing] getAvailableCredits failed", externalId, error);
@@ -95,6 +103,49 @@ export async function ensurePaidCustomer(
   } catch (error) {
     console.warn("[billing] ensurePaidCustomer failed", user.id, error);
     return null;
+  }
+}
+
+export type GrantCreditsResult = "granted" | "customer-missing" | "error";
+
+/**
+ * Grant spendable credits to a customer (`externalId = user.id`), optionally
+ * expiring. Used for the free plan's monthly allowance — expiry stops unused
+ * free credits stacking across months.
+ */
+export async function grantCredits(
+  billing: PaidBilling,
+  externalId: string,
+  input: { amount: number; expiresAt?: Date },
+): Promise<GrantCreditsResult> {
+  try {
+    const res = await fetch(
+      `${PAID_API_BASE}/customers/external/${encodeURIComponent(externalId)}/credits/grants`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${billing.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          creditCurrencyKey: CREDIT_CURRENCY_KEY,
+          amount: input.amount,
+          ...(input.expiresAt ? { expiresAt: input.expiresAt.toISOString() } : {}),
+        }),
+      },
+    );
+    if (res.ok) return "granted";
+    if (res.status === 404) return "customer-missing";
+    console.warn(
+      "[billing] grantCredits failed",
+      externalId,
+      res.status,
+      await res.text(),
+    );
+    return "error";
+  } catch (error) {
+    console.warn("[billing] grantCredits failed", externalId, error);
+    return "error";
   }
 }
 

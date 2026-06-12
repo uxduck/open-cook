@@ -15,21 +15,30 @@ const env = Object.fromEntries(
     .filter((line) => line.includes("=") && !line.trimStart().startsWith("#"))
     .map((line) => {
       const idx = line.indexOf("=");
-      return [line.slice(0, idx).trim(), line.slice(idx + 1).trim().replace(/^['"]|['"]$/g, "")];
+      return [
+        line.slice(0, idx).trim(),
+        line
+          .slice(idx + 1)
+          .trim()
+          .replace(/^['"]|['"]$/g, ""),
+      ];
     }),
 );
 
 const BASE = "https://api.agentpaid.io/api/v2";
 
 async function api(method, path, body) {
-  const res = await fetch(`${BASE}${path}`, {
+  const init = {
     method,
     headers: {
       Authorization: `Bearer ${env.PAID_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  };
+  if (body) {
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${BASE}${path}`, init);
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`${method} ${path} -> ${res.status}: ${text}`);
@@ -46,12 +55,14 @@ if (currency) {
   currency = await api("POST", "/credits/currencies", {
     name: "OpenCook Credits",
     key: "opencook_credits",
-    description: "OpenCook spendable credits. Restyle = 25 credits, story = 50 credits (1 credit ≈ £0.02).",
+    description:
+      "OpenCook spendable credits. Restyle = 25 credits, story = 50 credits (1 credit ≈ £0.02).",
   });
   console.log("created credit currency:", JSON.stringify(currency));
 }
 const creditsCurrencyId = currency.id ?? currency.data?.id;
-if (!creditsCurrencyId) throw new Error(`no currency id in ${JSON.stringify(currency)}`);
+if (!creditsCurrencyId)
+  throw new Error(`no currency id in ${JSON.stringify(currency)}`);
 
 // --- 2. Product attributes + pricing ----------------------------------------
 const products = (await api("GET", "/products")).data ?? [];
@@ -144,7 +155,9 @@ const updates = {
 for (const [externalId, update] of Object.entries(updates)) {
   const product = byExternalId[externalId];
   if (!product) {
-    console.error(`product not found for externalId ${externalId} — run paid-setup-products.mjs first`);
+    console.error(
+      `product not found for externalId ${externalId} — run paid-setup-products.mjs first`,
+    );
     continue;
   }
   const existingAttrs = product.productAttributes ?? [];
@@ -153,22 +166,30 @@ for (const [externalId, update] of Object.entries(updates)) {
     continue;
   }
   const updated = await api("PUT", `/products/${product.id}`, update);
-  console.log(`updated ${externalId}:`, JSON.stringify({
-    id: updated.id ?? product.id,
-    active: updated.active,
-    attributes: (updated.productAttributes ?? []).map((a) => a.name),
-  }));
+  console.log(
+    `updated ${externalId}:`,
+    JSON.stringify({
+      id: updated.id ?? product.id,
+      active: updated.active,
+      attributes: (updated.productAttributes ?? []).map((a) => a.name),
+    }),
+  );
 }
 
 // --- 3. Verify ----------------------------------------------------------------
 console.log("\n=== final state ===");
 const final = (await api("GET", "/products")).data ?? [];
 for (const p of final) {
-  console.log(JSON.stringify({
-    id: p.id,
-    externalId: p.externalId,
-    name: p.name,
-    active: p.active,
-    attributes: (p.productAttributes ?? []).map((a) => ({ name: a.name, active: a.active })),
-  }));
+  console.log(
+    JSON.stringify({
+      id: p.id,
+      externalId: p.externalId,
+      name: p.name,
+      active: p.active,
+      attributes: (p.productAttributes ?? []).map((a) => ({
+        name: a.name,
+        active: a.active,
+      })),
+    }),
+  );
 }

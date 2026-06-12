@@ -1,22 +1,33 @@
 import {
-  type CreateRecipeInput,
-  ingredientBaseText,
-  ingredientDisplayText,
-  parseRecipeYield,
   type Recipe,
-  type RecipeImage,
-  type RecipeIngredient,
-  type RecipeShare,
-  type RecipeStep,
   type RecipeVisibility,
   recipeSearchText,
   type SharedRecipe,
-  servingScaleFactor,
   structureIngredients,
   structureSteps,
 } from "@open-cook/core";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ArrowLeft, ArchiveX, BookOpen, Braces, CheckCircle2, ChefHat, Clipboard, Clock3, Compass, Copy, CreditCard, Database, Download, ExternalLink, FileCode2, FileText, Github, Globe2, GripVertical, Image, ImagePlus, KeyRound, LibraryBig, Link2, ListChecks, Loader2, LockKeyhole, LogIn, LogOut, Minus, Plus, RefreshCcw, Save, Search, Server, Settings, Share2, ShieldCheck, Sparkles, Star, Trash2, UploadCloud, UserPlus, UserRound, Users, Wand2, Workflow, X } from "lucide-react";
+import {
+  BookOpen,
+  Braces,
+  CheckCircle2,
+  Compass,
+  CreditCard,
+  Download,
+  FileText,
+  Globe2,
+  KeyRound,
+  LibraryBig,
+  LogIn,
+  LogOut,
+  Plus,
+  RefreshCcw,
+  Settings,
+  UploadCloud,
+  UserPlus,
+  UserRound,
+  Users,
+} from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -25,25 +36,33 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  type AgentManifest,
-  type ApiInfo,
-  api,
-  type OpenApiDocument,
-  type ShoppingListResult,
-} from "../api";
-import { authApi, type CurrentAuthSession } from "../authApi";
+import { api } from "../api";
+import type { CurrentAuthSession } from "../authApi";
 import { useSession } from "../context/SessionProvider";
-import { displayImageUrl } from "../imageDisplayUrl";
 import {
-  type MarketingFoodAsset,
-  marketingFeatureAssets,
-  marketingHeroAsset,
-  marketingIngredientAssets,
-} from "../marketingAssets";
-import { Button, buttonClassName } from "../ui";
+  Button,
+  buttonClassName,
+  buttonRowClassName,
+  checkRowClassName,
+  fieldClassName,
+  inlineStatusClassName,
+  panelTitleClassName,
+  workspacePageBaseClassName,
+} from "../ui";
 import {
-  type AuthIntent, emptyNoteClass, emptyRecipe, errorMessage, footnoteClass, githubUrl, hasIngredientStructure, importSourceLabels, ingredientWithText, marketingPreviewRecipes, marketingSocialLinkClass, optionalNumber, optionalQuantity, type Page, previewText, readOnlyListClass, recipeAutoSaveDebounceMs, recipeAutoSavePayload, recipeImagesOf, recipeSearchDebounceMs, type RecipeSection, recipesFromStashCookExport, recipeTimeSummary, remixDemoResultTitles, remixPromptAt, remixPromptExamples, type SaveState, sharedRecipeKey, shortDate, themeExamples, useDebouncedValue, visibilityPillClass, xProfileUrl,
+  type AuthIntent,
+  emptyRecipe,
+  errorMessage,
+  optionalNumber,
+  type Page,
+  recipeAutoSaveDebounceMs,
+  recipeAutoSavePayload,
+  recipeSearchDebounceMs,
+  type RecipeSection,
+  recipesFromStashCookExport,
+  type SaveState,
+  sharedRecipeKey,
+  useDebouncedValue,
 } from "../lib/recipe";
 import {
   BrowseRecipePage,
@@ -80,6 +99,21 @@ function workspaceSearchEqual(
   return workspaceSearchKeys.every((key) => current[key] === next[key]);
 }
 
+const importDetailsClassName =
+  "group rounded-lg border border-solid border-(--color-line) bg-[rgba(255,253,248,0.58)] max-[860px]:min-w-0 max-[860px]:max-w-full";
+
+const importSummaryClassName =
+  "flex cursor-pointer list-none items-center justify-between gap-4 px-[13px] py-3 text-(--color-ink) group-open:border-b group-open:border-solid group-open:border-(--color-line) max-[820px]:flex-col max-[820px]:items-start max-[820px]:gap-1.5 [&::-webkit-details-marker]:hidden [&>small]:text-[11px] [&>small]:font-[720] [&>small]:text-(--color-fog) [&>span]:flex [&>span]:items-center [&>span]:gap-2 [&>span]:font-[760] [&>span]:text-[#37423a]";
+
+const advancedImportGridClassName =
+  "grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-4 border-t border-solid border-(--color-line) p-4 max-[860px]:grid-cols-1";
+
+const fieldHelpClassName =
+  "text-xs font-[650] leading-[1.45] text-(--color-pop-muted-ink) [&_code]:font-extrabold [&_code]:text-(--color-pop-ink)";
+
+const importUrlFieldClassName =
+  "grid min-h-[92px] content-center gap-[7px] rounded-lg border border-solid border-[#ddd2c2] bg-(--color-panel) p-2.5 text-xs font-[760] text-[#5e675f] [&_input]:w-full [&_input]:min-w-0 [&_input]:border-0 [&_input]:bg-transparent [&_input]:text-lg [&_input]:font-[520] [&_input]:text-(--color-ink) [&_input]:outline-0 [&_input::placeholder]:text-[#8a8378]";
+
 export function AppNav({
   onAuthIntent,
   onNavigateHome,
@@ -109,36 +143,52 @@ export function AppNav({
   }
 
   return (
-    <header className="app-nav">
-      <button className="app-brand-button" onClick={onNavigateHome} type="button">
-        <img alt="" className="brand-logo" src="/logo.png" />
+    <header className="col-[1/-1] grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-[18px] border-b border-solid border-[color-mix(in_oklch,var(--color-line)_60%,transparent)] bg-[color-mix(in_oklch,var(--color-panel)_78%,transparent)] px-6 py-3 backdrop-blur-[16px] backdrop-saturate-[1.3] max-[980px]:col-[1] max-[980px]:row-auto max-[980px]:grid-cols-1 max-[720px]:px-4">
+      <button
+        className="inline-flex min-h-[38px] items-center gap-[9px] rounded-[10px] border-0 bg-transparent px-1.5 py-1 font-display text-[19px] font-semibold tracking-[-0.01em] text-(--color-ink) transition-opacity duration-[180ms] hover:opacity-[0.66] max-[860px]:flex-initial"
+        onClick={onNavigateHome}
+        type="button"
+      >
+        <img alt="" className="size-7" src="/logo.png" />
         <span>OpenCook</span>
       </button>
-      <nav className="app-nav-links" aria-label="Primary" />
-      <div className="app-nav-actions">
+      <nav
+        className="flex items-center justify-center max-[980px]:justify-start"
+        aria-label="Primary"
+      />
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-[980px]:justify-start max-[860px]:flex-nowrap max-[860px]:overflow-x-auto max-[860px]:pb-1 max-[860px]:[&>*]:flex-none">
         {sessionLoading ? (
-          <span className="icon-status" aria-label="Checking account" role="status">
-            <RefreshCcw className="spin" size={15} />
+          <span
+            className="inline-flex aspect-square w-9 min-h-9 items-center justify-center rounded-lg border border-solid border-transparent bg-transparent p-2 text-(--color-fog)"
+            aria-label="Checking account"
+            role="status"
+          >
+            <RefreshCcw className="animate-[spin_900ms_linear_infinite]" size={15} />
           </span>
         ) : session ? (
-          <details className="tools-menu" ref={profileMenuRef}>
+          <details className="group relative" ref={profileMenuRef}>
             <summary
               aria-label="Account menu"
               className={buttonClassName({
                 active: page === "api" || page === "export" || page === "settings",
-                className: "cursor-pointer list-none",
+                className:
+                  "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
                 size: "icon",
               })}
             >
               <UserRound size={16} />
             </summary>
-            <div className="tools-menu-panel">
+            <div className="absolute right-0 top-[calc(100%+8px)] z-30 hidden min-w-[184px] gap-[3px] rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-1.5 shadow-workspace group-open:grid max-[860px]:left-0 max-[860px]:right-auto">
               {session.user.email ? (
-                <div className="profile-menu-header">
+                <div className="mb-[3px] grid gap-px border-b border-solid border-(--color-line) px-[9px] pt-1 pb-2">
                   {session.user.name ? (
-                    <span className="profile-menu-name">{session.user.name}</span>
+                    <span className="truncate text-[13px] font-extrabold text-(--color-ink)">
+                      {session.user.name}
+                    </span>
                   ) : null}
-                  <span className="profile-menu-email">{session.user.email}</span>
+                  <span className="truncate text-xs font-semibold text-(--color-fog)">
+                    {session.user.email}
+                  </span>
                 </div>
               ) : null}
               <Button
@@ -274,10 +324,12 @@ export function TopBar({
   onImport: () => void;
 }) {
   return (
-    <header className="topbar">
+    <header className="flex items-start justify-between gap-[18px] pb-2 max-[860px]:flex-col max-[860px]:items-stretch">
       <div>
-        <h1>{loggedIn ? "Your recipes" : "Recipes for everyone"}</h1>
-        <p>
+        <h1 className="m-0 font-display text-[clamp(32px,2.3vw,42px)] font-bold leading-[0.98] tracking-normal text-(--color-ink)">
+          {loggedIn ? "Your recipes" : "Recipes for everyone"}
+        </h1>
+        <p className="mx-0 mt-[9px] mb-0 max-w-[560px] text-sm leading-[1.42] text-(--color-fog)">
           Import the recipes you cook, keep every original safe, and make new versions
           from them. Adapt the cooking, theme the look, or write a story.
         </p>
@@ -361,7 +413,6 @@ export function NewRecipeMenu({
   );
 }
 
-
 export type ImporterPanelProps = {
   importMarkdown: (markdownText?: string) => Promise<void>;
   importStashCook: () => Promise<void>;
@@ -393,7 +444,9 @@ export function AddRecipePage({
   onCancel: () => void;
 }) {
   return (
-    <section className="workspace-page add-recipe-page !bg-[#fffbf4]">
+    <section
+      className={`${workspacePageBaseClassName} grid content-start gap-5 bg-[#fffbf4] [&>*]:mx-auto [&>*]:w-full [&>*]:max-w-[880px]`}
+    >
       <WorkspaceHeader
         description="Bring recipes in from a link, file, StashCook export, or OpenCook Markdown."
         icon={<UploadCloud size={25} />}
@@ -401,7 +454,7 @@ export function AddRecipePage({
         title="Add recipes"
       />
       {message !== "Ready" ? (
-        <p className="inline-status">
+        <p className={inlineStatusClassName}>
           <CheckCircle2 size={16} />
           {message}
         </p>
@@ -446,10 +499,10 @@ export function ImporterPanel({
   }
 
   return (
-    <section className="import-panel !mt-0 !grid !w-full !gap-3.5">
-      <div className="simple-import-layout">
+    <section className="mt-0 grid w-full gap-3.5 max-[860px]:min-w-0 max-[860px]:max-w-full">
+      <div className="mt-3.5 grid grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-3.5 max-[860px]:grid-cols-1">
         <form
-          className="workspace-panel import-link-panel"
+          className="grid min-h-[252px] min-w-0 content-between gap-3.5 rounded-lg border border-solid border-(--color-pop-ink) p-6 shadow-pop-sm [background:linear-gradient(135deg,rgba(47,104,75,0.08),transparent_42%),linear-gradient(180deg,#fffdf8,#f7efe2)] [&_p]:mx-0 [&_p]:mt-[-4px] [&_p]:mb-0 [&_p]:max-w-[580px] [&_p]:text-sm [&_p]:text-(--color-pop-muted-ink)"
           onSubmit={(event) => {
             event.preventDefault();
             if (websiteUrl) {
@@ -458,7 +511,7 @@ export function ImporterPanel({
           }}
         >
           <div>
-            <span className="panel-title">
+            <span className={panelTitleClassName}>
               <Globe2 size={15} />
               Import from a link
             </span>
@@ -467,8 +520,8 @@ export function ImporterPanel({
               saves it to your recipes.
             </p>
           </div>
-          <div className="import-url-row">
-            <label className="field import-url-field">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(144px,180px)] items-stretch gap-2.5 max-[820px]:grid-cols-1">
+            <label className={importUrlFieldClassName}>
               Recipe URL
               <input
                 onChange={(event) => setWebsiteUrl(event.target.value)}
@@ -489,7 +542,7 @@ export function ImporterPanel({
           </div>
         </form>
         <label
-          className="file-dropzone import-file-panel"
+          className="grid min-h-[178px] cursor-pointer content-start place-items-center gap-2 rounded-lg border border-dashed border-[#c9bda9] bg-[#f8f4ec] p-[22px] text-center text-[#3f4a42] transition hover:-translate-y-px hover:border-(--color-pop-accent) hover:bg-[#fffaf2] [&>input]:hidden [&>span]:max-w-[300px] [&>span]:text-[13px] [&>span]:text-(--color-pop-muted-ink) [&>strong]:text-(--color-pop-ink) [&>svg]:text-(--color-pop-accent)"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
@@ -514,25 +567,25 @@ export function ImporterPanel({
           </span>
         </label>
       </div>
-      <details className="advanced-import-panel">
-        <summary>
+      <details className={importDetailsClassName}>
+        <summary className={importSummaryClassName}>
           <span>
             <BookOpen size={15} />
             Paste Markdown
           </span>
           <small>For recipes you already have as text</small>
         </summary>
-        <div className="advanced-import-grid markdown-import-grid">
-          <label className="field">
+        <div className={`${advancedImportGridClassName} grid-cols-[minmax(0,1fr)]`}>
+          <label className={fieldClassName}>
             OpenCook Markdown
             <textarea
-              className="!min-h-[170px]"
+              className="min-h-[170px]!"
               onChange={(event) => setMarkdown(event.target.value)}
               placeholder="# Recipe title&#10;&#10;## Ingredients&#10;- 1 thing&#10;&#10;## Method&#10;1. Cook it"
               value={markdown}
             />
           </label>
-          <div className="button-row">
+          <div className={buttonRowClassName}>
             <Button
               disabled={!markdown}
               onClick={() => void importMarkdown()}
@@ -545,17 +598,17 @@ export function ImporterPanel({
           </div>
         </div>
       </details>
-      <details className="advanced-import-panel">
-        <summary>
+      <details className={importDetailsClassName}>
+        <summary className={importSummaryClassName}>
           <span>
             <KeyRound size={15} />
             Import from a StashCook account
           </span>
           <small>One-time migration for StashCook users</small>
         </summary>
-        <div className="advanced-import-grid">
-          <div className="advanced-import-section">
-            <label className="field">
+        <div className={advancedImportGridClassName}>
+          <div className="grid min-w-0 content-start gap-3">
+            <label className={fieldClassName}>
               Session token
               <input
                 onChange={(event) => setStashCookToken(event.target.value)}
@@ -564,7 +617,7 @@ export function ImporterPanel({
                 value={stashCookToken}
               />
             </label>
-            <label className="field">
+            <label className={fieldClassName}>
               Session cookie (alternative)
               <input
                 onChange={(event) => setStashCookCookie(event.target.value)}
@@ -573,14 +626,14 @@ export function ImporterPanel({
                 value={stashCookCookie}
               />
             </label>
-            <small className="field-help">
+            <small className={fieldHelpClassName}>
               You only need one of the two. Find them in your browser dev tools while
               logged in to StashCook: the <code>Authorization</code> header or the
               session cookie.
             </small>
           </div>
-          <div className="advanced-import-section">
-            <label className="field">
+          <div className="grid min-w-0 content-start gap-3">
+            <label className={fieldClassName}>
               Base URL (optional)
               <input
                 onChange={(event) => setStashCookBaseUrl(event.target.value)}
@@ -588,7 +641,7 @@ export function ImporterPanel({
                 value={stashCookBaseUrl}
               />
             </label>
-            <label className="field">
+            <label className={fieldClassName}>
               Max recipes
               <input
                 max="200"
@@ -598,7 +651,7 @@ export function ImporterPanel({
                 value={stashCookTake}
               />
             </label>
-            <label className="check-row">
+            <label className={checkRowClassName}>
               <input
                 checked={stashCookIncludeDeleted}
                 onChange={(event) => setStashCookIncludeDeleted(event.target.checked)}
@@ -607,8 +660,8 @@ export function ImporterPanel({
               Include deleted recipes
             </label>
           </div>
-          <div className="advanced-import-note button-row !items-center !justify-between">
-            <small className="field-help">
+          <div className="col-span-full flex flex-wrap items-center justify-between gap-2 border-t border-solid border-[#eee7dc] pt-3.5">
+            <small className={fieldHelpClassName}>
               Credentials are cleared once the import finishes.
             </small>
             <Button
@@ -647,7 +700,9 @@ export function RecipeWorkspace() {
   const [recipesLoading, setRecipesLoading] = useState(true);
   const [section, setSection] = useState<RecipeSection>(searchSection(appSearch));
   const [sharedRecipes, setSharedRecipes] = useState<SharedRecipe[]>([]);
+  const [sharedRecipesLoading, setSharedRecipesLoading] = useState(true);
   const [publicRecipes, setPublicRecipes] = useState<SharedRecipe[]>([]);
+  const [publicRecipesLoading, setPublicRecipesLoading] = useState(true);
   const [sharedSelectedKey, setSharedSelectedKey] = useState<string | undefined>(
     appSearch.browse,
   );
@@ -762,8 +817,7 @@ export function RecipeWorkspace() {
     Boolean(recipeParam) &&
     !sessionLoading &&
     (!sessionUserId ||
-      (!recipesLoading &&
-        !visibleRecipes.some((recipe) => recipe.id === recipeParam)));
+      (!recipesLoading && !visibleRecipes.some((recipe) => recipe.id === recipeParam)));
 
   const goToRecipeLibrary = useCallback(() => {
     setPage("recipes");
@@ -857,20 +911,27 @@ export function RecipeWorkspace() {
   const loadSharedRecipes = useCallback(async () => {
     if (!sessionUserId) {
       setSharedRecipes([]);
+      setSharedRecipesLoading(false);
       return;
     }
+    setSharedRecipesLoading(true);
     try {
       setSharedRecipes(await api.listSharedRecipes());
     } catch (error) {
       setMessage(`Loading shared recipes failed: ${errorMessage(error)}`);
+    } finally {
+      setSharedRecipesLoading(false);
     }
   }, [sessionUserId]);
 
   const loadPublicRecipes = useCallback(async () => {
+    setPublicRecipesLoading(true);
     try {
       setPublicRecipes(await api.listPublicRecipes());
     } catch (error) {
       setMessage(`Loading public recipes failed: ${errorMessage(error)}`);
+    } finally {
+      setPublicRecipesLoading(false);
     }
   }, []);
 
@@ -911,6 +972,13 @@ export function RecipeWorkspace() {
     [browseRecipes, sharedSelectedKey],
   );
   const sharedUnreadCount = sharedRecipes.filter((recipe) => !recipe.seenAt).length;
+  const recipesPageLoading =
+    sessionLoading ||
+    (section === "mine"
+      ? recipesLoading
+      : section === "shared"
+        ? sharedRecipesLoading
+        : publicRecipesLoading);
 
   const openOwnedRecipe = useCallback((id: string) => {
     setSection("mine");
@@ -1422,25 +1490,8 @@ export function RecipeWorkspace() {
     }
   }
 
-  // Persist an AI-generated draft (Adapt/Theme) as a brand-new recipe and open
-  // it, leaving the source recipe untouched. Errors propagate to the panel.
-  async function createRecipeFromDraft(input: CreateRecipeInput) {
-    if (!ensureSignedIn("save a recipe")) {
-      return;
-    }
-    const saved = await api.createRecipe(input);
-    applySavedRecipe(saved);
-    setSection("mine");
-    setPage("recipes");
-    setSelectedId(saved.id);
-    setMode("view");
-    setSaveState("saved");
-    setAddMode(false);
-    setMessage(`Saved “${saved.title}”`);
-  }
-
   return (
-    <main className="app-shell !bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.88),transparent_30rem),linear-gradient(135deg,#fbfaf6_0%,#f4f1e9_52%,#eef2ea_100%)]">
+    <main className="grid h-screen min-h-screen grid-cols-[minmax(380px,0.68fr)_minmax(580px,1.32fr)] grid-rows-[64px_minmax(0,1fr)] overflow-hidden bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.88),transparent_30rem),linear-gradient(135deg,#fbfaf6_0%,#f4f1e9_52%,#eef2ea_100%)] text-(--color-ink) max-[1180px]:grid-cols-[minmax(360px,0.78fr)_minmax(520px,1.22fr)] max-[980px]:h-auto max-[980px]:grid-cols-[minmax(0,1fr)] max-[980px]:grid-rows-[auto] max-[980px]:overflow-visible">
       <AppNav
         onAuthIntent={openAuth}
         onNavigateHome={() => navigate({ to: "/" })}
@@ -1485,7 +1536,6 @@ export function RecipeWorkspace() {
             onChange={setDraft}
             onDelete={deleteSelectedRecipe}
             onMirrorImages={mirrorImages}
-            onSaveAsNewRecipe={createRecipeFromDraft}
             onSetMode={setMode}
             onStructure={structureCurrentRecipe}
             onVisibilityChange={updateRecipeVisibility}
@@ -1498,6 +1548,7 @@ export function RecipeWorkspace() {
                     : undefined))
                 : undefined
             }
+            recipes={recipes}
             saveState={saveState}
           />
         ) : section !== "mine" && openBrowse ? (
@@ -1512,6 +1563,7 @@ export function RecipeWorkspace() {
         ) : (
           <RecipeLibrary
             browseRecipes={browseRecipes}
+            loading={recipesPageLoading}
             onCreateBlank={createBlankRecipe}
             onImport={openRecipeImportPage}
             onOpenBrowse={openBrowseRecipe}

@@ -1,6 +1,7 @@
 import {
   decodeRecipeText,
   type CreateRecipeInput,
+  type FoodPreferences,
   type GeneratedRecipeImage,
   type Recipe,
   type RecipeAiAudience,
@@ -12,6 +13,8 @@ import {
   type RecipeShare,
   type SharedRecipe,
   type UpdateRecipeInput,
+  type UserFoodPreferences,
+  type UserFoodPreferencesLookup,
 } from "@open-cook/core";
 
 type ImportResult = {
@@ -427,6 +430,12 @@ export const api = {
   exportRecipeMarkdown: (id: string) =>
     requestText(`/api/export/recipes/${id}/markdown`),
   billingSummary: () => request<BillingSummary>("/api/billing/me"),
+  getFoodPreferences: () => request<UserFoodPreferencesLookup>("/api/me/preferences"),
+  updateFoodPreferences: (preferences: FoodPreferences) =>
+    request<UserFoodPreferences>("/api/me/preferences", {
+      body: JSON.stringify(preferences),
+      method: "PUT",
+    }),
   startCheckout: (target: CheckoutTarget) =>
     request<{ url: string }>("/api/billing/checkout", {
       body: JSON.stringify({ target }),

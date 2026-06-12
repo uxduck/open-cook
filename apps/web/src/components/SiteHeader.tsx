@@ -1,5 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import {
+  marketingBrandClassName,
+  marketingNavActionsClassName,
+  marketingNavClassName,
+} from "../ui";
 
 /**
  * Shared top nav for standalone pages (pricing, account). Reuses the same brand
@@ -7,12 +12,12 @@ import type { ReactNode } from "react";
  */
 export function SiteHeader({ actions }: { actions?: ReactNode }) {
   return (
-    <header className="marketing-nav">
-      <Link className="marketing-brand" to="/">
-        <img alt="" className="brand-logo" src="/logo.png" />
+    <header className={marketingNavClassName}>
+      <Link className={marketingBrandClassName} to="/">
+        <img alt="" className="size-7" src="/logo.png" />
         <span>OpenCook</span>
       </Link>
-      <div className="marketing-nav-actions">{actions}</div>
+      <div className={marketingNavActionsClassName}>{actions}</div>
     </header>
   );
 }

@@ -1,4 +1,4 @@
-import type { Recipe } from "@open-cook/core";
+import type { FoodPreferences, Recipe } from "@open-cook/core";
 import { relations, sql } from "drizzle-orm";
 import {
   foreignKey,
@@ -32,6 +32,11 @@ export const user = sqliteTable("user", {
     .default(false),
   plan: text("plan").notNull().default("free"),
   paidCustomerId: text("paid_customer_id"),
+  // When the free plan's monthly credit allowance was last granted in Paid.
+  // Null until the first lazy grant; see ensureFreeMonthlyCredits().
+  freeCreditsGrantedAt: integer("free_credits_granted_at", {
+    mode: "timestamp_ms",
+  }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(timestampMsDefault),
@@ -188,6 +193,17 @@ export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
   }),
 }));
 
+export const userFoodPreferences = sqliteTable("user_food_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  preferences: text("preferences_json", { mode: "json" })
+    .$type<FoodPreferences>()
+    .notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const recipes = sqliteTable(
   "recipes",
   {
@@ -319,3 +335,4 @@ export const stashcookRawExports = sqliteTable(
 export type RecipeRow = typeof recipes.$inferSelect;
 export type NewRecipeRow = typeof recipes.$inferInsert;
 export type RecipeCookProgressRow = typeof recipeCookProgress.$inferSelect;
+export type UserFoodPreferencesRow = typeof userFoodPreferences.$inferSelect;

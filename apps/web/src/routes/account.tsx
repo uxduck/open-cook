@@ -33,7 +33,8 @@ function AccountPage() {
         if (!cancelled) setBilling(summary);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load billing.");
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Failed to load billing.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -50,7 +51,9 @@ function AccountPage() {
       const { url } = await api.openBillingPortal();
       window.location.href = url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't open the billing portal.");
+      setError(
+        err instanceof Error ? err.message : "Couldn't open the billing portal.",
+      );
       setPortalPending(false);
     }
   }, []);
@@ -80,7 +83,6 @@ function AccountPage() {
           </>
         }
       />
-
 
       <h1 className="mb-1 text-2xl font-extrabold text-(--foreground)">Account</h1>
       <p className="mb-8 text-(--muted-foreground)">{session.user.email}</p>
@@ -126,7 +128,11 @@ function AccountPage() {
 
             <div className="flex flex-wrap gap-3">
               {isPro ? (
-                <Button variant="secondary" disabled={portalPending} onClick={openPortal}>
+                <Button
+                  variant="secondary"
+                  disabled={portalPending}
+                  onClick={openPortal}
+                >
                   {portalPending ? "Opening…" : "Manage billing"}
                   <ExternalLink size={15} />
                 </Button>

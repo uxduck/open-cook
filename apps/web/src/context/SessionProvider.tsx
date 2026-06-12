@@ -78,7 +78,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   return (
     <SessionContext.Provider
-      value={{ session, sessionLoading, sessionError, refreshSession, signOut, openAuth }}
+      value={{
+        session,
+        sessionLoading,
+        sessionError,
+        refreshSession,
+        signOut,
+        openAuth,
+      }}
     >
       {children}
     </SessionContext.Provider>

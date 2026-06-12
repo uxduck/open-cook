@@ -1,48 +1,53 @@
 import {
-  ingredientBaseText,
   ingredientDisplayText,
-  parseRecipeYield,
   type Recipe,
   type RecipeImage,
-  type RecipeIngredient,
-  type RecipeShare,
-  type RecipeStep,
-  type RecipeVisibility,
-  recipeSearchText,
   type SharedRecipe,
-  servingScaleFactor,
-  structureIngredients,
-  structureSteps,
 } from "@open-cook/core";
-import { ArrowLeft, ArchiveX, BookOpen, Braces, CheckCircle2, ChefHat, Clipboard, Clock3, Compass, Copy, Database, Download, ExternalLink, FileCode2, FileText, Github, Globe2, GripVertical, Image, ImagePlus, KeyRound, LibraryBig, Link2, ListChecks, Loader2, LockKeyhole, LogIn, Minus, Plus, RefreshCcw, Save, Search, Server, Settings, Share2, ShieldCheck, SlidersHorizontal, Sparkles, Star, Trash2, UploadCloud, UserPlus, UserRound, Users, Wand2, Workflow, X } from "lucide-react";
 import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  type AgentManifest,
-  type ApiInfo,
-  api,
-  type OpenApiDocument,
-  type ShoppingListResult,
-} from "../api";
-import { authApi, type CurrentAuthSession } from "../authApi";
+  ArchiveX,
+  CheckCircle2,
+  ChefHat,
+  Compass,
+  Copy,
+  GripVertical,
+  ImagePlus,
+  Loader2,
+  Plus,
+  Star,
+  Users,
+  X,
+} from "lucide-react";
+import { useRef, useState } from "react";
+import { api } from "../api";
 import { displayImageUrl } from "../imageDisplayUrl";
+import { Button } from "../ui";
 import {
-  type MarketingFoodAsset,
-  marketingFeatureAssets,
-  marketingHeroAsset,
-  marketingIngredientAssets,
-} from "../marketingAssets";
-import { Button, buttonClassName } from "../ui";
-import {
-  type AuthIntent, demoRecipes, emptyNoteClass, emptyRecipe, errorMessage, footnoteClass, githubUrl, hasIngredientStructure, importSourceLabels, ingredientWithText, marketingPreviewRecipes, marketingSocialLinkClass, optionalNumber, optionalQuantity, type Page, previewText, readOnlyListClass, recipeAutoSaveDebounceMs, recipeImagesOf, recipeSavePayload, recipeSearchDebounceMs, type RecipeSection, recipesFromStashCookExport, recipeTimeSummary, remixDemoResultTitles, remixPromptAt, remixPromptExamples, type SaveState, sharedRecipeKey, shortDate, themeExamples, useDebouncedValue, visibilityPillClass, xProfileUrl,
+  emptyNoteClass,
+  errorMessage,
+  footnoteClass,
+  readOnlyListClass,
+  recipeImagesOf,
+  type RecipeSection,
 } from "../lib/recipe";
 
+export const detailPanelClassName =
+  "col-[2] row-[2] flex min-h-0 min-w-0 flex-col gap-3.5 overflow-auto bg-[rgba(255,250,243,0.96)] px-[22px] pt-5 pb-7 max-[980px]:col-[1] max-[980px]:row-auto max-[860px]:max-w-full max-[720px]:px-4";
+
+export const detailToolbarClassName =
+  "flex flex-none items-center justify-between gap-3.5 rounded-lg border border-solid border-(--color-line) bg-[rgba(255,253,248,0.82)] p-2.5 shadow-[0_4px_14px_rgba(54,42,27,0.04)] max-[720px]:flex-col max-[720px]:items-stretch";
+
+export const detailStatusClassName =
+  "flex min-w-0 items-center gap-2 text-[13px] font-[780] text-(--color-sage) [&>span]:truncate";
+
+export const detailActionsClassName =
+  "flex flex-none items-center gap-2 max-[720px]:w-full max-[720px]:[&>*]:flex-1";
+
+export const editorSectionClassName =
+  "grid flex-none gap-3 rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-3.5";
+
+export const sectionHeadingClassName =
+  "flex items-center justify-between gap-3 max-[720px]:flex-col max-[720px]:items-stretch [&>strong]:text-sm [&>strong]:font-[820] [&>strong]:text-(--color-ink)";
 
 export function BrowseRecipeView({
   message,
@@ -59,9 +64,9 @@ export function BrowseRecipeView({
 }) {
   if (!recipe) {
     return (
-      <section className="detail-panel browse-panel">
-        <div className="detail-toolbar">
-          <div className="detail-status">
+      <section className={detailPanelClassName}>
+        <div className={detailToolbarClassName}>
+          <div className={detailStatusClassName}>
             <CheckCircle2 size={16} />
             <span>{message}</span>
           </div>
@@ -81,9 +86,9 @@ export function BrowseRecipeView({
   const hasSavedCopy = section === "shared" && Boolean(recipe.copiedRecipeId);
 
   return (
-    <section className="detail-panel browse-panel">
-      <div className="detail-toolbar">
-        <div className="detail-status">
+    <section className={detailPanelClassName}>
+      <div className={detailToolbarClassName}>
+        <div className={detailStatusClassName}>
           {section === "shared" ? <Users size={16} /> : <Compass size={16} />}
           <span>
             {section === "shared"
@@ -91,7 +96,7 @@ export function BrowseRecipeView({
               : `Public recipe by ${recipe.owner.name}`}
           </span>
         </div>
-        <div className="detail-actions">
+        <div className={detailActionsClassName}>
           <Button
             disabled={hasSavedCopy}
             onClick={() => void onCopy(recipe)}
@@ -126,8 +131,8 @@ export function ReadOnlyRecipeContent({ recipe }: { recipe: SharedRecipe }) {
     <>
       <RecipeHero draft={recipe} />
 
-      <section className="editor-section">
-        <div className="section-heading">
+      <section className={editorSectionClassName}>
+        <div className={sectionHeadingClassName}>
           <strong>Ingredients</strong>
         </div>
         <ul className={`list-disc ${readOnlyListClass}`}>
@@ -139,8 +144,8 @@ export function ReadOnlyRecipeContent({ recipe }: { recipe: SharedRecipe }) {
         </ul>
       </section>
 
-      <section className="editor-section">
-        <div className="section-heading">
+      <section className={editorSectionClassName}>
+        <div className={sectionHeadingClassName}>
           <strong>Method</strong>
         </div>
         <ol className={`list-decimal ${readOnlyListClass}`}>
@@ -151,8 +156,8 @@ export function ReadOnlyRecipeContent({ recipe }: { recipe: SharedRecipe }) {
       </section>
 
       {recipe.notes.length ? (
-        <section className="editor-section">
-          <div className="section-heading">
+        <section className={editorSectionClassName}>
+          <div className={sectionHeadingClassName}>
             <strong>Notes</strong>
           </div>
           <ul className={`list-disc ${readOnlyListClass}`}>
@@ -170,8 +175,8 @@ export function RecipeHero({ draft }: { draft: Recipe }) {
   const extraImages = recipeImagesOf(draft).slice(1, 5);
 
   return (
-    <div className="recipe-hero">
-      <div className="recipe-hero-media">
+    <div className="grid flex-none grid-cols-[minmax(220px,0.42fr)_minmax(0,1fr)] items-stretch gap-[18px] overflow-hidden rounded-lg border border-solid border-[#e6d3bd] p-3 [background:linear-gradient(135deg,rgba(254,231,207,0.62),rgba(255,253,248,0.98)),var(--color-panel)] max-[720px]:grid-cols-1">
+      <div className="min-h-[188px] overflow-hidden rounded-lg">
         <RecipeThumb recipe={draft} large />
         {extraImages.length ? (
           <div className="mt-2 flex gap-2">
@@ -188,10 +193,14 @@ export function RecipeHero({ draft }: { draft: Recipe }) {
           </div>
         ) : null}
       </div>
-      <div className="recipe-hero-copy">
-        <h2>{draft.title || "Untitled recipe"}</h2>
-        <p>{draft.description || "Local OpenCook recipe"}</p>
-        <div className="meta-row">
+      <div className="grid min-w-0 content-center gap-2.5 py-2 pr-2.5 pl-0 max-[720px]:px-0.5 max-[720px]:pt-0.5 max-[720px]:pb-1">
+        <h2 className="m-0 font-display text-[clamp(34px,3vw,52px)] font-[720] leading-[0.98] tracking-normal text-(--color-ink)">
+          {draft.title || "Untitled recipe"}
+        </h2>
+        <p className="m-0 max-w-[680px] text-[15px] leading-[1.42] text-(--color-fog)">
+          {draft.description || "Local OpenCook recipe"}
+        </p>
+        <div className="flex flex-wrap gap-2 [&>span]:rounded-full [&>span]:border [&>span]:border-solid [&>span]:border-[#dfcfbc] [&>span]:bg-[rgba(255,253,248,0.86)] [&>span]:px-2.5 [&>span]:py-1.5 [&>span]:text-xs [&>span]:font-[760] [&>span]:text-[#4d554f]">
           <span>{draft.prepTimeMinutes ?? "-"} min prep</span>
           <span>{draft.cookTimeMinutes ?? "-"} min cook</span>
           <span>{draft.servings ?? "servings unset"}</span>
@@ -302,8 +311,8 @@ export function RecipeImageGallery({
   }
 
   return (
-    <section className="editor-section">
-      <div className="section-heading">
+    <section className={editorSectionClassName}>
+      <div className={sectionHeadingClassName}>
         <strong>Photos</strong>
         <span className="text-(--color-fog)">
           {images.length
@@ -457,21 +466,38 @@ export function RecipeImageGallery({
   );
 }
 
-export function RecipeThumb({ recipe, large = false }: { recipe: Recipe; large?: boolean }) {
+export function RecipeThumb({
+  className = "",
+  large = false,
+  recipe,
+}: {
+  className?: string;
+  large?: boolean;
+  recipe: Recipe;
+}) {
   const [failedImageUrl, setFailedImageUrl] = useState<string>();
   const imageUrl = displayImageUrl(recipe.imageUrl);
+  const thumbClassName = [
+    "inline-flex aspect-square items-center justify-center bg-[#ece3d6] object-cover text-(--color-sage)",
+    large ? "flex h-full min-h-[188px] w-full rounded-lg" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return imageUrl && failedImageUrl !== imageUrl ? (
     <img
       alt=""
-      className={large ? "thumb large" : "thumb"}
+      className={thumbClassName}
       decoding="async"
       loading="lazy"
       onError={() => setFailedImageUrl(imageUrl)}
       src={imageUrl}
     />
   ) : (
-    <span className={large ? "thumb large fallback" : "thumb fallback"}>
+    <span
+      className={`${thumbClassName} [background:linear-gradient(135deg,rgba(49,93,67,0.16),rgba(200,79,63,0.12)),#efe6d9]`}
+    >
       <ChefHat size={large ? 30 : 18} />
     </span>
   );

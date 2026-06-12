@@ -20,6 +20,7 @@
     ".agents",
     ".claude",
     ".codex",
+    "apps/web/src/routeTree.gen.ts",
     "**/.wrangler"
   ]
 }

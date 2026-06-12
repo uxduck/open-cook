@@ -1,5 +1,4 @@
 import {
-  type CreateRecipeInput,
   ingredientDisplayText,
   parseRecipeYield,
   type Recipe,
@@ -50,6 +49,8 @@ import { BrowseRecipeView } from "./recipeViews";
 
 const cardClassName =
   "rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) shadow-[5px_5px_0_0_var(--color-ink)]";
+const skeletonItems = [0, 1, 2, 3, 4, 5];
+const skeletonBlockClassName = "block animate-pulse rounded-md bg-(--color-line)";
 
 // A full-bleed cover that fills its (positioned) parent, falling back to a chef
 // hat when there is no image or it fails to load.
@@ -245,8 +246,9 @@ function ShareMenu({
         Share
       </Button>
       {open ? (
-        <div className="share-menu absolute right-0 z-30 mt-2 w-[340px] max-w-[88vw] overflow-hidden rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-[6px_6px_0_0_var(--color-ink)]">
+        <div className="absolute right-0 z-30 mt-2 w-[340px] max-w-[88vw] overflow-hidden rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-[6px_6px_0_0_var(--color-ink)]">
           <SharingSection
+            className="rounded-none! border-0! bg-transparent! p-0! [&_input]:min-w-0 [&>*]:min-w-0"
             draft={draft}
             onVisibilityChange={onVisibilityChange}
             ownerUserId={ownerUserId}
@@ -758,12 +760,12 @@ export function RecipePage({
   onChange,
   onDelete,
   onMirrorImages,
-  onSaveAsNewRecipe,
   onSetMode,
   onStructure,
   onVisibilityChange,
   ownerUserId,
   persistedVisibility,
+  recipes,
   saveState,
 }: {
   draft: Recipe;
@@ -772,12 +774,12 @@ export function RecipePage({
   onChange: (recipe: Recipe) => void;
   onDelete: () => Promise<void>;
   onMirrorImages: () => Promise<void>;
-  onSaveAsNewRecipe: (input: CreateRecipeInput) => Promise<void>;
   onSetMode: (mode: "view" | "edit") => void;
   onStructure: () => Promise<void>;
   onVisibilityChange: (visibility: RecipeVisibility) => Promise<void>;
   ownerUserId?: string | null;
   persistedVisibility?: Recipe["visibility"];
+  recipes?: Recipe[];
   saveState: SaveState;
 }) {
   const recipeId = draft.id && !draft.id.startsWith("demo-") ? draft.id : "";
@@ -822,12 +824,7 @@ export function RecipePage({
       {mode === "view" ? (
         <>
           <RecipeReadView draft={draft} />
-          {recipeId ? (
-            <RecipeGenerationPanel
-              onSaveAsNewRecipe={onSaveAsNewRecipe}
-              recipe={draft}
-            />
-          ) : null}
+          {recipeId ? <RecipeGenerationPanel recipe={draft} recipes={recipes} /> : null}
         </>
       ) : (
         <RecipeEditor
@@ -920,10 +917,59 @@ function VisibilityBadge({ visibility }: { visibility?: RecipeVisibility }) {
   );
 }
 
+function SkeletonBlock({ className = "" }: { className?: string }) {
+  return <span className={`${skeletonBlockClassName} ${className}`} />;
+}
+
+function RecipeCardSkeleton({ section }: { section: RecipeSection }) {
+  return (
+    <article
+      aria-hidden="true"
+      className={`${cardClassName} flex min-h-[260px] flex-col gap-0 overflow-hidden p-0`}
+    >
+      <div className="relative aspect-[16/10] w-full overflow-hidden border-b-2 border-(--color-ink) bg-(--color-soft)">
+        <SkeletonBlock className="absolute inset-4 rounded-xl bg-(--color-panel)" />
+        <div className="absolute bottom-3 left-3 flex gap-1.5">
+          <SkeletonBlock className="h-2.5 w-8 rounded-full" />
+          <SkeletonBlock className="h-2.5 w-12 rounded-full" />
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col gap-2 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <SkeletonBlock className="h-4 w-3/5" />
+          {section === "mine" ? (
+            <SkeletonBlock className="h-5 w-14 rounded-full" />
+          ) : null}
+        </div>
+        <SkeletonBlock className="h-3 w-full" />
+        <SkeletonBlock className="h-3 w-4/5" />
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
+          <SkeletonBlock className="h-5 w-20 rounded-full" />
+          <SkeletonBlock className="h-5 w-24 rounded-full" />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function RecipeLibrarySkeleton({ section }: { section: RecipeSection }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4"
+    >
+      {skeletonItems.map((item) => (
+        <RecipeCardSkeleton key={item} section={section} />
+      ))}
+    </div>
+  );
+}
+
 // The library shelf: a full-width gallery of recipe cards. No recipe is open
 // until a card is clicked.
 export function RecipeLibrary({
   browseRecipes,
+  loading,
   onCreateBlank,
   onImport,
   onOpenBrowse,
@@ -937,6 +983,7 @@ export function RecipeLibrary({
   sharedCount,
 }: {
   browseRecipes: SharedRecipe[];
+  loading: boolean;
   onCreateBlank: () => void | Promise<void>;
   onImport: () => void;
   onOpenBrowse: (key: string) => void;
@@ -960,7 +1007,7 @@ export function RecipeLibrary({
           sharedCount={sharedCount}
         />
       ) : null}
-      <div className="search-row">
+      <div className="m-0 grid grid-cols-[18px_minmax(0,1fr)] items-center gap-2.5 rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-2 shadow-[0_1px_2px_rgba(54,42,27,0.04)] [&>input]:min-w-0 [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input::placeholder]:text-[#8a8378] [&>svg]:text-(--color-fog)">
         <svg
           aria-hidden="true"
           fill="none"
@@ -989,7 +1036,14 @@ export function RecipeLibrary({
         />
       </div>
 
-      {section === "mine" ? (
+      {loading ? (
+        <>
+          <p className="sr-only" role="status">
+            Loading recipes
+          </p>
+          <RecipeLibrarySkeleton section={section} />
+        </>
+      ) : section === "mine" ? (
         <>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-4">
             {ownedRecipes.map((recipe) => (
@@ -1076,7 +1130,7 @@ export function RecipeLibrary({
         </div>
       )}
 
-      {section === "mine" && ownedRecipes.length === 0 ? (
+      {!loading && section === "mine" && ownedRecipes.length === 0 ? (
         <p className={`${emptyNoteClass} col-span-full`}>
           No recipes yet. Use “New recipe” to start one or import from a link.
         </p>

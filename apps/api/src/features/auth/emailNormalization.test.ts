@@ -12,7 +12,9 @@ describe("normalizeEmail", () => {
     expect(normalizeEmail("john.doe@gmail.com")).toBe(canonical);
     expect(normalizeEmail("j.o.h.n.d.o.e@gmail.com")).toBe(canonical);
     expect(normalizeEmail("johndoe+newsletter@gmail.com")).toBe(canonical);
-    expect(normalizeEmail("John.Doe+spam@googlemail.com")).toBe("johndoe@googlemail.com");
+    expect(normalizeEmail("John.Doe+spam@googlemail.com")).toBe(
+      "johndoe@googlemail.com",
+    );
   });
 
   it("strips + aliases but keeps dots for outlook/yahoo/icloud/proton/fastmail", () => {

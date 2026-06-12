@@ -1,6 +1,7 @@
 import {
   createRootRoute,
   HeadContent,
+  Link,
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
@@ -35,6 +36,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootDocument,
+  notFoundComponent: NotFoundPage,
 });
 
 function RootDocument() {
@@ -50,5 +52,35 @@ function RootDocument() {
         <Scripts />
       </body>
     </html>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-(--background) px-6 py-16 text-(--foreground)">
+      <section className="mx-auto max-w-lg text-center">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-(--muted-foreground)">
+          404
+        </p>
+        <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">Page not found</h1>
+        <p className="mt-4 text-base leading-7 text-(--muted-foreground)">
+          This page is not in OpenCook. Head back home or open your cookbook.
+        </p>
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-(--primary) px-5 text-sm font-semibold text-(--primary-foreground)"
+            to="/"
+          >
+            Home
+          </Link>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-(--border) bg-(--card) px-5 text-sm font-semibold text-(--foreground)"
+            to="/app"
+          >
+            Open cookbook
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }

@@ -214,7 +214,9 @@ type CloudflareImagesResult = {
 };
 
 function createCloudflareImagesStore(
-  config: Required<Pick<CloudflareImagesConfig, "accountId" | "apiToken" | "accountHash">> &
+  config: Required<
+    Pick<CloudflareImagesConfig, "accountId" | "apiToken" | "accountHash">
+  > &
     Pick<CloudflareImagesConfig, "variant">,
 ): ImageAssetStore {
   const variant = config.variant?.trim() || "public";

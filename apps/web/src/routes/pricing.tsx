@@ -97,8 +97,8 @@ function PricingPage() {
           Keep your recipes free. Pay only for the magic.
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-(--muted-foreground)">
-          Store up to 1,000 recipes at no cost. Upgrade when you want more
-          AI versions and stories. Or top up with credits as you go.
+          Store up to 1,000 recipes at no cost. Upgrade when you want more AI versions
+          and stories. Or top up with credits as you go.
         </p>
       </section>
 
@@ -260,7 +260,10 @@ function FeatureList({ features }: { features: string[] }) {
   return (
     <ul className="flex flex-1 flex-col gap-2.5">
       {features.map((feature) => (
-        <li key={feature} className="flex items-start gap-2 text-sm text-(--foreground)">
+        <li
+          key={feature}
+          className="flex items-start gap-2 text-sm text-(--foreground)"
+        >
           <Check size={18} className="mt-px shrink-0 text-(--pop-green)" />
           <span>{feature}</span>
         </li>
@@ -323,9 +326,7 @@ function PricingCalculator({ annual }: { annual: boolean }) {
         <div className="rounded-xl border-2 border-(--primary) bg-(--background) p-5 text-center md:min-w-[220px]">
           <p className="text-sm font-bold text-(--muted-foreground)">{result.plan}</p>
           <p className="my-1 text-3xl font-extrabold text-(--foreground)">
-            {result.monthly === 0
-              ? "£0"
-              : `${gbp(Number(result.monthly.toFixed(2)))}`}
+            {result.monthly === 0 ? "£0" : `${gbp(Number(result.monthly.toFixed(2)))}`}
             <span className="text-sm font-normal text-(--muted-foreground)">/mo</span>
           </p>
           <p className="text-xs text-(--muted-foreground)">{result.note}</p>

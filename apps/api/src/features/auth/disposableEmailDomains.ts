@@ -162,6 +162,9 @@ export const DISPOSABLE_DOMAINS: ReadonlySet<string> = new Set([
 export function isDisposableEmail(email: string): boolean {
   const atIdx = email.lastIndexOf("@");
   if (atIdx === -1) return false;
-  const domain = email.slice(atIdx + 1).toLowerCase().trim();
+  const domain = email
+    .slice(atIdx + 1)
+    .toLowerCase()
+    .trim();
   return DISPOSABLE_DOMAINS.has(domain);
 }

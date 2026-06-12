@@ -37,7 +37,7 @@ export function AuthScreen({ intent }: { intent: "login" | "signup" }) {
   }
 
   return (
-    <main className="site-shell min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b-2 border-[var(--border)] bg-[color-mix(in_oklch,var(--background)_86%,white)] shadow-[0_2px_0_var(--border)]">
         <div className="mx-auto flex min-h-[70px] w-full max-w-[1180px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <button
@@ -45,7 +45,7 @@ export function AuthScreen({ intent }: { intent: "login" | "signup" }) {
             onClick={() => navigate({ to: "/" })}
             type="button"
           >
-            <img alt="" className="brand-logo" src="/logo.png" />
+            <img alt="" className="size-7" src="/logo.png" />
             OpenCook
           </button>
 
@@ -76,7 +76,9 @@ export function AuthScreen({ intent }: { intent: "login" | "signup" }) {
       <AuthPage
         intent={intent}
         onPasswordResetComplete={clearPasswordResetUrl}
-        onRecipeWorkspace={() => navigate({ to: "/app" })}
+        onRecipeWorkspace={() =>
+          navigate({ to: intent === "signup" ? "/onboarding" : "/app" })
+        }
         onSessionRefresh={refreshSession}
         passwordResetError={passwordResetError}
         passwordResetToken={passwordResetToken}

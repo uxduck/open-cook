@@ -14,7 +14,13 @@ export const marketingSocialLinkClass =
   "inline-flex h-8 w-8 items-center justify-center text-(--foreground) opacity-75 transition hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--primary)";
 
 export type Page = "recipes" | "api" | "export" | "build" | "settings";
-export type AppRoute = "home" | "app" | "addRecipe" | "login" | "register" | "recipeLink";
+export type AppRoute =
+  | "home"
+  | "app"
+  | "addRecipe"
+  | "login"
+  | "register"
+  | "recipeLink";
 export type AuthIntent = "signup" | "login" | null;
 export type RecipeSection = "mine" | "shared" | "explore";
 
@@ -25,7 +31,8 @@ export function sharedRecipeKey(recipe: SharedRecipe) {
 export const emptyNoteClass =
   "col-span-full self-start rounded-lg border-2 border-dashed border-[var(--border)] bg-[var(--card)] p-4 text-[13px] text-[var(--muted-foreground)]";
 export const footnoteClass = "text-[13px] text-[var(--muted-foreground)]";
-export const readOnlyListClass = "m-0 grid gap-[7px] pl-5 text-sm text-[var(--foreground)]";
+export const readOnlyListClass =
+  "m-0 grid gap-[7px] pl-5 text-sm text-[var(--foreground)]";
 
 export function visibilityPillClass(active: boolean) {
   return buttonClassName({
@@ -72,7 +79,9 @@ export function recipeAutoSavePayload(recipe: Recipe) {
 export const recipeSavePayload = recipeAutoSavePayload;
 
 // Gallery view of a recipe, folding the legacy single cover into a one-item list.
-export function recipeImagesOf(recipe: Pick<Recipe, "images" | "imageUrl">): RecipeImage[] {
+export function recipeImagesOf(
+  recipe: Pick<Recipe, "images" | "imageUrl">,
+): RecipeImage[] {
   if (recipe.images?.length) {
     return recipe.images;
   }
@@ -305,7 +314,6 @@ export function previewText(value: string, maxLength = 12000) {
     value.length - maxLength
   } characters. Use the download link for the full export.`;
 }
-
 
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";

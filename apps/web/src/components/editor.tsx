@@ -1,48 +1,57 @@
 import {
-  ingredientBaseText,
   ingredientDisplayText,
   parseRecipeYield,
   type Recipe,
-  type RecipeImage,
   type RecipeIngredient,
   type RecipeShare,
   type RecipeStep,
   type RecipeVisibility,
-  recipeSearchText,
-  type SharedRecipe,
   servingScaleFactor,
   structureIngredients,
   structureSteps,
 } from "@open-cook/core";
-import { ArrowLeft, ArchiveX, BookOpen, Braces, CheckCircle2, ChefHat, Clipboard, Clock3, Compass, Copy, Database, Download, ExternalLink, FileCode2, FileText, Github, Globe2, GripVertical, Image, ImagePlus, KeyRound, LibraryBig, Link2, ListChecks, Loader2, LockKeyhole, LogIn, Minus, Plus, RefreshCcw, Save, Search, Server, Settings, Share2, ShieldCheck, SlidersHorizontal, Sparkles, Star, Trash2, UploadCloud, UserPlus, UserRound, Users, Wand2, Workflow, X } from "lucide-react";
 import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+  Clipboard,
+  Clock3,
+  Globe2,
+  Link2,
+  LockKeyhole,
+  Minus,
+  Plus,
+  Share2,
+  UserRound,
+  Wand2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../api";
+import { Button, fieldClassName, inlineStatusClassName } from "../ui";
 import {
-  type AgentManifest,
-  type ApiInfo,
-  api,
-  type OpenApiDocument,
-  type ShoppingListResult,
-} from "../api";
-import { authApi, type CurrentAuthSession } from "../authApi";
-import { displayImageUrl } from "../imageDisplayUrl";
-import {
-  type MarketingFoodAsset,
-  marketingFeatureAssets,
-  marketingHeroAsset,
-  marketingIngredientAssets,
-} from "../marketingAssets";
-import { Button, buttonClassName } from "../ui";
-import {
-  type AuthIntent, demoRecipes, emptyNoteClass, emptyRecipe, errorMessage, footnoteClass, githubUrl, hasIngredientStructure, importSourceLabels, ingredientWithText, marketingPreviewRecipes, marketingSocialLinkClass, optionalNumber, optionalQuantity, type Page, previewText, readOnlyListClass, recipeAutoSaveDebounceMs, recipeImagesOf, recipeSavePayload, recipeSearchDebounceMs, type RecipeSection, recipesFromStashCookExport, recipeTimeSummary, remixDemoResultTitles, remixPromptAt, remixPromptExamples, type SaveState, sharedRecipeKey, shortDate, themeExamples, useDebouncedValue, visibilityPillClass, xProfileUrl,
+  errorMessage,
+  hasIngredientStructure,
+  ingredientWithText,
+  optionalNumber,
+  optionalQuantity,
+  recipeImagesOf,
+  visibilityPillClass,
 } from "../lib/recipe";
-import { RecipeImageGallery } from "./recipeViews";
+import {
+  detailPanelClassName,
+  editorSectionClassName,
+  RecipeImageGallery,
+  sectionHeadingClassName,
+} from "./recipeViews";
+
+const structurePanelClassName =
+  "grid min-w-0 gap-3 rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-3.5";
+
+const structureHeadingClassName = "flex items-center justify-between gap-3";
+
+const structureHeadingLabelClassName =
+  "grid gap-0.5 [&>span]:text-xs [&>span]:font-[740] [&>span]:text-(--color-fog) [&>strong]:font-display [&>strong]:text-xl [&>strong]:font-[720] [&>strong]:leading-none [&>strong]:text-(--color-ink)";
+
+const ingCellClassName =
+  "w-full min-w-0 rounded-[7px] border border-solid border-transparent bg-[#fffaf2] px-2 py-[7px] text-[13px] font-[560] leading-[1.35] text-(--color-ink) outline-0 focus:border-[#c9ad8c] focus:bg-(--color-panel)";
 
 export function RecipeEditor({
   draft,
@@ -102,20 +111,20 @@ export function RecipeEditor({
     : [];
 
   return (
-    <section className="detail-panel !gap-4 !bg-(--color-panel) !p-0">
-      <section className="editor-section compact-details-section">
-        <div className="section-heading">
+    <section className={`${detailPanelClassName} gap-4! bg-(--color-panel)! p-0!`}>
+      <section className={editorSectionClassName}>
+        <div className={sectionHeadingClassName}>
           <strong>Recipe details</strong>
         </div>
-        <div className="editor-details-grid">
-          <label className="field field-title">
+        <div className="grid grid-cols-[minmax(220px,1.05fr)_minmax(0,1fr)] gap-2.5 max-[720px]:grid-cols-1">
+          <label className={`${fieldClassName} col-span-full`}>
             Title
             <input
               onChange={(event) => onChange({ ...draft, title: event.target.value })}
               value={draft.title}
             />
           </label>
-          <label className="field">
+          <label className={fieldClassName}>
             Source URL
             <input
               onChange={(event) =>
@@ -133,9 +142,11 @@ export function RecipeEditor({
         </div>
       </section>
 
-      <section className="editor-section timing-section">
-        <div className="field-grid">
-          <label className="field">
+      <section
+        className={`${editorSectionClassName} grid-cols-[minmax(0,0.82fr)_minmax(220px,0.46fr)] max-[1180px]:grid-cols-1`}
+      >
+        <div className="grid grid-cols-3 gap-2.5 max-[720px]:grid-cols-1">
+          <label className={fieldClassName}>
             Prep
             <input
               min="0"
@@ -149,7 +160,7 @@ export function RecipeEditor({
               value={draft.prepTimeMinutes ?? ""}
             />
           </label>
-          <label className="field">
+          <label className={fieldClassName}>
             Cook
             <input
               min="0"
@@ -163,7 +174,7 @@ export function RecipeEditor({
               value={draft.cookTimeMinutes ?? ""}
             />
           </label>
-          <label className="field">
+          <label className={fieldClassName}>
             Servings
             <input
               onChange={(event) => onChange({ ...draft, servings: event.target.value })}
@@ -171,7 +182,7 @@ export function RecipeEditor({
             />
           </label>
         </div>
-        <label className="field">
+        <label className={fieldClassName}>
           Tags
           <input
             onChange={(event) =>
@@ -188,7 +199,7 @@ export function RecipeEditor({
         </label>
       </section>
 
-      <section className="recipe-structure-grid">
+      <section className="grid flex-none grid-cols-[minmax(430px,0.98fr)_minmax(360px,1fr)] items-start gap-3 max-[1180px]:grid-cols-1">
         <StructuredIngredientsEditor
           baseServings={baseServings}
           draft={draft}
@@ -211,7 +222,7 @@ export function RecipeEditor({
       </section>
 
       {reviewFlags.length ? (
-        <section className="structure-review">
+        <section className="grid min-w-0 gap-3 rounded-lg border border-solid border-(--color-line) bg-[#fffaf2] p-3.5 [&>div]:flex [&>div]:flex-wrap [&>div]:gap-[7px] [&>strong]:text-[13px] [&>strong]:font-[820] [&>strong]:text-(--color-ink) [&_span]:rounded-full [&_span]:border [&_span]:border-solid [&_span]:border-[#e8cda8] [&_span]:bg-[#fff3df] [&_span]:px-2 [&_span]:py-[5px] [&_span]:text-[11px] [&_span]:font-[780] [&_span]:text-[#8b5529]">
           <strong>Review flags</strong>
           <div>
             {[...new Set(reviewFlags)].slice(0, 5).map((flag) => (
@@ -239,11 +250,13 @@ export function RecipeEditor({
 }
 
 export function SharingSection({
+  className = "",
   draft,
   onVisibilityChange,
   ownerUserId,
   persistedVisibility,
 }: {
+  className?: string;
   draft: Recipe;
   onVisibilityChange: (visibility: RecipeVisibility) => Promise<void>;
   ownerUserId?: string | null;
@@ -254,16 +267,11 @@ export function SharingSection({
   const recipeId = draft.id && !draft.id.startsWith("demo-") ? draft.id : "";
   const hasUnsavedVisibility = Boolean(recipeId && visibility !== savedVisibility);
   const candidateShareLink =
-    recipeId &&
-    ownerUserId &&
-    visibility !== "private" &&
-    typeof window !== "undefined"
+    recipeId && ownerUserId && visibility !== "private" && typeof window !== "undefined"
       ? `${window.location.origin}/r/${ownerUserId}/${recipeId}`
       : "";
   const shareLink =
-    candidateShareLink &&
-    savedVisibility !== "private" &&
-    !hasUnsavedVisibility
+    candidateShareLink && savedVisibility !== "private" && !hasUnsavedVisibility
       ? candidateShareLink
       : "";
   const visibleShareLink = shareLink || candidateShareLink;
@@ -345,8 +353,8 @@ export function SharingSection({
   }
 
   return (
-    <section className="editor-section sharing-section">
-      <div className="section-heading">
+    <section className={`${editorSectionClassName} ${className}`.trim()}>
+      <div className={sectionHeadingClassName}>
         <strong>Sharing</strong>
       </div>
       <div
@@ -453,7 +461,7 @@ export function SharingSection({
               ))}
             </div>
           ) : null}
-          {shareStatus ? <p className="inline-status">{shareStatus}</p> : null}
+          {shareStatus ? <p className={inlineStatusClassName}>{shareStatus}</p> : null}
         </>
       ) : null}
     </section>
@@ -529,15 +537,15 @@ export function StructuredIngredientsEditor({
   }
 
   return (
-    <section className="structure-panel ingredients-panel">
-      <div className="structure-heading">
-        <div>
+    <section className={structurePanelClassName}>
+      <div className={structureHeadingClassName}>
+        <div className={structureHeadingLabelClassName}>
           <strong>Ingredients</strong>
           <span>
             {ingredients.length} {hasStructuredIngredients ? "rows" : "lines"}
           </span>
         </div>
-        <div className="structure-actions">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {!hasStructuredIngredients ? (
             <Button onClick={() => void onStructure()} size="sm">
               <Wand2 size={15} />
@@ -552,11 +560,12 @@ export function StructuredIngredientsEditor({
       </div>
 
       {hasStructuredIngredients ? (
-        <div className="serving-scale">
+        <div className="grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2.5 rounded-lg border border-solid border-[#e4d4c2] bg-[#fffaf2] p-2 max-[720px]:grid-cols-1 max-[720px]:items-stretch [&>small]:text-xs [&>small]:text-(--color-fog) [&>span]:text-xs [&>span]:font-[820] [&>span]:text-(--color-ink)">
           <span>Scale</span>
-          <div>
+          <div className="grid grid-cols-[30px_58px_30px] items-center">
             <button
               aria-label="Decrease servings"
+              className="inline-flex h-[30px] items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-lg last:rounded-r-lg"
               disabled={!baseServings}
               onClick={() => setTargetServings(Math.max(1, targetServings - 1))}
               type="button"
@@ -565,6 +574,7 @@ export function StructuredIngredientsEditor({
             </button>
             <input
               aria-label="Target servings"
+              className="h-[30px] w-[58px] min-w-0 border-y border-x-0 border-solid border-[#d8c8b5] bg-(--color-panel) text-center text-[13px] font-[760] text-(--color-ink) outline-0"
               disabled={!baseServings}
               min="1"
               onChange={(event) =>
@@ -575,6 +585,7 @@ export function StructuredIngredientsEditor({
             />
             <button
               aria-label="Increase servings"
+              className="inline-flex h-[30px] items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-lg last:rounded-r-lg"
               disabled={!baseServings}
               onClick={() => setTargetServings(targetServings + 1)}
               type="button"
@@ -591,9 +602,12 @@ export function StructuredIngredientsEditor({
       ) : null}
 
       {!hasStructuredIngredients ? (
-        <div className="ingredient-line-list">
+        <div className="grid gap-2">
           {ingredients.map((ingredient, index) => (
-            <div className="ingredient-line-row" key={ingredient.id ?? index}>
+            <div
+              className="grid grid-cols-[minmax(0,1fr)_34px] items-center gap-2 rounded-lg border border-solid border-[#e1d4c2] bg-(--color-panel) p-2 [&>input]:w-full [&>input]:min-w-0 [&>input]:rounded-md [&>input]:border [&>input]:border-solid [&>input]:border-transparent [&>input]:bg-[#fffaf2] [&>input]:p-2 [&>input]:text-sm [&>input]:font-[560] [&>input]:leading-[1.35] [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input]:focus:border-[#c9ad8c] [&>input]:focus:bg-(--color-panel)"
+              key={ingredient.id ?? index}
+            >
               <input
                 aria-label={`Ingredient line ${index + 1}`}
                 onChange={(event) => updateIngredientLine(index, event.target.value)}
@@ -613,17 +627,16 @@ export function StructuredIngredientsEditor({
       ) : null}
 
       {hasStructuredIngredients ? (
-        <div className="ingredient-table">
+        <div className="grid min-w-0 gap-2">
           {ingredients.map((ingredient, index) => {
-            const showScaled =
-              scaleFactor !== 1 && ingredient.scalable !== false;
+            const showScaled = scaleFactor !== 1 && ingredient.scalable !== false;
             return (
               <div
-                className="ingredient-row"
+                className="grid grid-cols-[3rem_3.25rem_minmax(0,1fr)_2rem] items-center gap-x-[7px] gap-y-1.5 rounded-[10px] border border-solid border-[#e1d4c2] bg-(--color-panel) p-2 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4]"
                 key={ingredient.id ?? `${ingredient.text}-${index}`}
               >
                 <input
-                  className="ing-cell ing-qty"
+                  className={`${ingCellClassName} text-center font-[720]`}
                   aria-label={`Ingredient ${index + 1} quantity`}
                   onChange={(event) => {
                     const valueText = event.target.value;
@@ -641,7 +654,7 @@ export function StructuredIngredientsEditor({
                   value={ingredient.quantity?.valueText ?? ""}
                 />
                 <input
-                  className="ing-cell ing-unit"
+                  className={`${ingCellClassName} text-center font-[720]`}
                   aria-label={`Ingredient ${index + 1} unit`}
                   onChange={(event) =>
                     updateIngredient(index, {
@@ -656,7 +669,7 @@ export function StructuredIngredientsEditor({
                   value={ingredient.quantity?.unit ?? ""}
                 />
                 <input
-                  className="ing-cell ing-name"
+                  className={`${ingCellClassName} font-[620]`}
                   aria-label={`Ingredient ${index + 1} item`}
                   onChange={(event) =>
                     updateIngredient(index, {
@@ -675,9 +688,9 @@ export function StructuredIngredientsEditor({
                 >
                   <X size={14} />
                 </Button>
-                <div className="ing-meta">
+                <div className="col-span-full flex min-w-0 items-center gap-[7px]">
                   <input
-                    className="ing-cell ing-prep"
+                    className={`${ingCellClassName} flex-auto text-xs`}
                     aria-label={`Ingredient ${index + 1} preparation`}
                     onChange={(event) =>
                       updateIngredient(index, {
@@ -689,13 +702,18 @@ export function StructuredIngredientsEditor({
                     value={ingredient.preparation ?? ""}
                   />
                   {showScaled ? (
-                    <span className="ing-scaled" title="Scaled to servings">
+                    <span
+                      className="max-w-[55%] flex-initial truncate rounded-full border border-solid border-[#d2ddcf] bg-[#eff4ec] px-2.5 py-[5px] text-[11px] font-[760] text-(--color-sage)"
+                      title="Scaled to servings"
+                    >
                       → {ingredientDisplayText(ingredient, scaleFactor)}
                     </span>
                   ) : null}
                 </div>
                 {ingredient.warnings?.length ? (
-                  <span className="row-warning">{ingredient.warnings[0]}</span>
+                  <span className="col-span-full text-[11px] font-[760] leading-[1.25] text-[#9f6130]">
+                    {ingredient.warnings[0]}
+                  </span>
                 ) : null}
               </div>
             );
@@ -747,9 +765,9 @@ export function StructuredMethodEditor({
   }
 
   return (
-    <section className="structure-panel method-panel">
-      <div className="structure-heading">
-        <div>
+    <section className={structurePanelClassName}>
+      <div className={structureHeadingClassName}>
+        <div className={structureHeadingLabelClassName}>
           <strong>Method</strong>
           <span>{steps.length} steps</span>
         </div>
@@ -759,12 +777,18 @@ export function StructuredMethodEditor({
         </Button>
       </div>
 
-      <div className="step-list">
+      <div className="grid gap-[9px]">
         {steps.map((step, index) => (
-          <article className="step-card" key={step.id ?? `${step.text}-${index}`}>
-            <div className="step-number">{index + 1}</div>
+          <article
+            className="grid grid-cols-[32px_minmax(0,1fr)_34px] items-start gap-2 rounded-[10px] border border-solid border-[#e1d4c2] bg-(--color-panel) p-2.5 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4] max-[720px]:grid-cols-[30px_minmax(0,1fr)]"
+            key={step.id ?? `${step.text}-${index}`}
+          >
+            <div className="inline-flex size-7 items-center justify-center rounded-full border border-solid border-[#d2ddcf] bg-[#eff4ec] text-[13px] font-[820] text-(--color-sage)">
+              {index + 1}
+            </div>
             <textarea
               aria-label={`Method step ${index + 1}`}
+              className={`${ingCellClassName} min-h-[58px] resize-y`}
               onChange={(event) => {
                 const [nextStep] = hasStructuredIngredients
                   ? structureSteps([{ ...step, text: event.target.value }], ingredients)
@@ -778,6 +802,7 @@ export function StructuredMethodEditor({
             />
             <Button
               aria-label={`Remove method step ${index + 1}`}
+              className="max-[720px]:col-[2] max-[720px]:justify-self-end"
               onClick={() => removeStep(index)}
               size="icon"
               variant="ghost"
@@ -785,10 +810,10 @@ export function StructuredMethodEditor({
               <X size={14} />
             </Button>
             {hasStructuredIngredients ? (
-              <div className="step-chip-row">
+              <div className="col-[2/-1] flex flex-wrap gap-1.5 max-[720px]:col-span-full">
                 {step.timers?.map((timer) => (
                   <span
-                    className="step-chip"
+                    className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]"
                     key={`${step.id ?? step.text}-timer-${timer.label ?? ""}-${timer.minutes}`}
                   >
                     <Clock3 size={13} />
@@ -796,7 +821,7 @@ export function StructuredMethodEditor({
                   </span>
                 ))}
                 {step.temperature ? (
-                  <span className="step-chip">
+                  <span className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]">
                     {step.temperature.value}
                     {step.temperature.unit}
                   </span>
@@ -806,7 +831,10 @@ export function StructuredMethodEditor({
                     (item) => item.id === ingredientId,
                   );
                   return ingredient ? (
-                    <span className="step-chip" key={ingredientId}>
+                    <span
+                      className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]"
+                      key={ingredientId}
+                    >
                       {ingredient.item ?? ingredient.text}
                     </span>
                   ) : null;

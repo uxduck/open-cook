@@ -14,6 +14,7 @@ import { isTrustedOriginFor } from "./features/auth/auth";
 import { authMiddleware } from "./features/auth/middleware";
 import { exportApp } from "./features/export/exportApp";
 import { importApp } from "./features/import/importApp";
+import { preferencesApp } from "./features/preferences/preferencesApp";
 import { recipeApp } from "./features/recipes/recipeApp";
 import { structureApp } from "./features/structure/structureApp";
 import { storeMiddleware } from "./storage/storeMiddleware";
@@ -155,6 +156,7 @@ const apiApp = new Hono<Env>()
   .route("/assets", assetsApp)
   .route("/billing", billingApp)
   .route("/paid-webhook", billingWebhookApp)
+  .route("/me/preferences", preferencesApp)
   .route("/recipes", recipeApp)
   .route("/structure", structureApp)
   .route("/import", importApp)

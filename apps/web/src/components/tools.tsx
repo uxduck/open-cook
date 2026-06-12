@@ -1,28 +1,37 @@
+import type { Recipe } from "@open-cook/core";
 import {
-  ingredientBaseText,
-  ingredientDisplayText,
-  parseRecipeYield,
-  type Recipe,
-  type RecipeImage,
-  type RecipeIngredient,
-  type RecipeShare,
-  type RecipeStep,
-  type RecipeVisibility,
-  recipeSearchText,
-  type SharedRecipe,
-  servingScaleFactor,
-  structureIngredients,
-  structureSteps,
-} from "@open-cook/core";
-import { ArrowLeft, ArchiveX, BookOpen, Braces, CheckCircle2, ChefHat, Clipboard, Clock3, Compass, Copy, Database, Download, ExternalLink, FileCode2, FileText, Github, Globe2, GripVertical, Image, ImagePlus, KeyRound, LibraryBig, Link2, ListChecks, Loader2, LockKeyhole, LogIn, Minus, Plus, RefreshCcw, Save, Search, Server, Settings, Share2, ShieldCheck, SlidersHorizontal, Sparkles, Star, Trash2, UploadCloud, UserPlus, UserRound, Users, Wand2, Workflow, X } from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+  ArrowLeft,
+  Braces,
+  CheckCircle2,
+  Clipboard,
+  Database,
+  Download,
+  ExternalLink,
+  FileCode2,
+  FileText,
+  Github,
+  Globe2,
+  Image,
+  KeyRound,
+  LibraryBig,
+  Link2,
+  ListChecks,
+  Loader2,
+  LockKeyhole,
+  LogIn,
+  RefreshCcw,
+  Save,
+  Search,
+  Server,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  UploadCloud,
+  UserPlus,
+  UserRound,
+  Workflow,
+} from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   type AgentManifest,
   type ApiInfo,
@@ -31,18 +40,46 @@ import {
   type ShoppingListResult,
 } from "../api";
 import { authApi, type CurrentAuthSession } from "../authApi";
-import { displayImageUrl } from "../imageDisplayUrl";
 import {
-  type MarketingFoodAsset,
-  marketingFeatureAssets,
-  marketingHeroAsset,
-  marketingIngredientAssets,
-} from "../marketingAssets";
-import { Button, buttonClassName } from "../ui";
+  apiStatusClassName,
+  Button,
+  buttonRowClassName,
+  checkRowClassName,
+  fieldClassName,
+  inlineStatusClassName,
+  panelTitleClassName,
+  workspacePageBaseClassName,
+  workspacePageClassName,
+  workspacePanelClassName,
+} from "../ui";
 import {
-  type AuthIntent, demoRecipes, emptyNoteClass, emptyRecipe, errorMessage, footnoteClass, githubUrl, hasIngredientStructure, importSourceLabels, ingredientWithText, marketingPreviewRecipes, marketingSocialLinkClass, optionalNumber, optionalQuantity, type Page, previewText, readOnlyListClass, recipeAutoSaveDebounceMs, recipeImagesOf, recipeSavePayload, recipeSearchDebounceMs, type RecipeSection, recipesFromStashCookExport, recipeTimeSummary, remixDemoResultTitles, remixPromptAt, remixPromptExamples, type SaveState, sharedRecipeKey, shortDate, themeExamples, useDebouncedValue, visibilityPillClass, xProfileUrl,
+  errorMessage,
+  githubUrl,
+  type Page,
+  previewText,
+  shortDate,
 } from "../lib/recipe";
-import { RecipeThumb } from "./recipeViews";
+
+const endpointCardClassName =
+  "flex min-h-[66px] w-full items-start justify-start gap-2 rounded-lg p-3 text-left disabled:cursor-default disabled:bg-[#d9d1c4] disabled:text-[#82796e] [&>span]:grid [&>span]:min-w-0 [&>span]:gap-0.5 [&_small]:text-xs [&_small]:text-(--color-pop-muted-ink) [&_small]:[overflow-wrap:anywhere] [&_strong]:[overflow-wrap:anywhere]";
+
+const settingsCardClassName =
+  "grid min-w-0 content-start gap-4 self-start rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-[18px] shadow-[0_10px_26px_rgba(54,42,27,0.05)]";
+
+const settingsCardHeadingClassName =
+  "grid grid-cols-[38px_minmax(0,1fr)] items-start gap-3 [&_h2]:m-0 [&_h2]:text-lg [&_h2]:leading-[1.2] [&_h2]:tracking-normal [&_h2]:text-(--color-ink) [&_p]:mx-0 [&_p]:mt-1 [&_p]:mb-0 [&_p]:max-w-[52ch] [&_p]:text-[13px] [&_p]:leading-[1.45] [&_p]:text-(--color-fog)";
+
+const settingsBadgeClassName =
+  "inline-flex size-[38px] items-center justify-center rounded-lg border border-solid border-(--color-sage-line) bg-(--color-sage-soft) text-(--color-sage)";
+
+const settingsOptionClassName =
+  "grid min-h-[58px] cursor-pointer grid-cols-[18px_minmax(0,1fr)] items-start gap-[11px] rounded-lg border border-solid border-(--color-line) bg-[rgba(255,253,248,0.72)] p-3 text-left text-(--color-ink) hover:border-[#c8baa8] hover:bg-(--color-paper) [&>span]:grid [&>span]:min-w-0 [&>span]:gap-[3px] [&>svg]:mt-px [&>svg]:text-(--color-sage) [&_small]:text-xs [&_small]:leading-[1.35] [&_small]:text-(--color-fog) [&_strong]:text-sm [&_strong]:leading-[1.2]";
+
+const settingsAdvancedClassName =
+  "group col-span-full min-w-0 self-start rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-0 shadow-[0_10px_26px_rgba(54,42,27,0.05)]";
+
+const settingsSummaryClassName =
+  "relative flex cursor-pointer list-none items-center justify-between gap-3.5 px-[18px] py-4 text-(--color-ink) after:text-lg after:font-[760] after:text-(--color-fog) after:content-['+'] group-open:border-b group-open:border-solid group-open:border-(--color-line) group-open:after:content-['-'] max-[820px]:flex-col max-[820px]:items-start max-[820px]:gap-1.5 max-[820px]:after:absolute max-[820px]:after:right-[18px] [&::-webkit-details-marker]:hidden";
 
 export function ApiPage({
   recipes,
@@ -123,13 +160,13 @@ export function ApiPage({
   const endpointCount = Object.keys(openApi?.paths ?? {}).length;
 
   return (
-    <section className="workspace-page">
+    <section className={workspacePageClassName}>
       <WorkspaceHeader
         description="Inspect the live API contract, service metadata, and agent workflow surface so you can build your own OpenCook tools against the OpenAPI spec."
         icon={<Braces size={25} />}
         title="API"
       >
-        <span className={`api-status ${status}`}>
+        <span className={apiStatusClassName(status)}>
           <ShieldCheck size={16} />
           {status === "online" ? "Local API online" : `API ${status}`}
         </span>
@@ -139,7 +176,7 @@ export function ApiPage({
         </Button>
       </WorkspaceHeader>
 
-      <div className="metric-grid">
+      <div className="mt-[18px] grid grid-cols-4 gap-3 max-[860px]:grid-cols-1">
         <MetricCard
           detail={info?.version ?? "Waiting for /api/info"}
           icon={<Server size={20} />}
@@ -166,15 +203,15 @@ export function ApiPage({
         />
       </div>
 
-      <div className="workspace-grid">
-        <section className="workspace-panel">
-          <div className="panel-title">
+      <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-[860px]:grid-cols-1">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <Clipboard size={18} />
             <strong>Contracts</strong>
           </div>
-          <div className="endpoint-grid">
+          <div className="grid grid-cols-2 gap-2.5 max-[860px]:grid-cols-1">
             <a
-              className="endpoint-card"
+              className={endpointCardClassName}
               href="/openapi.json"
               target="_blank"
               rel="noopener"
@@ -185,7 +222,12 @@ export function ApiPage({
                 <small>/openapi.json</small>
               </span>
             </a>
-            <a className="endpoint-card" href="/scalar" target="_blank" rel="noopener">
+            <a
+              className={endpointCardClassName}
+              href="/scalar"
+              target="_blank"
+              rel="noopener"
+            >
               <FileCode2 size={18} />
               <span>
                 <strong>Scalar Docs</strong>
@@ -193,7 +235,7 @@ export function ApiPage({
               </span>
             </a>
             <a
-              className="endpoint-card"
+              className={endpointCardClassName}
               href="/api/agents/manifest"
               target="_blank"
               rel="noopener"
@@ -205,7 +247,7 @@ export function ApiPage({
               </span>
             </a>
             <button
-              className="endpoint-card"
+              className={endpointCardClassName}
               onClick={() => void copyPath("/api/recipes")}
               type="button"
             >
@@ -216,18 +258,23 @@ export function ApiPage({
               </span>
             </button>
           </div>
-          <p className="inline-status">{apiMessage}</p>
+          <p className={inlineStatusClassName}>{apiMessage}</p>
         </section>
 
-        <section className="workspace-panel">
-          <div className="panel-title">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <Search size={18} />
             <strong>Agent tools</strong>
           </div>
-          <div className="workflow-list">
+          <div className="grid gap-2">
             {(manifest?.tools ?? []).map((tool) => (
-              <div className="workflow-row" key={tool.path}>
-                <span className="method-chip">{tool.method}</span>
+              <div
+                className="grid grid-cols-[auto_minmax(0,1fr)] gap-1 border-t border-solid border-[#eee7dc] pt-2 [&>code]:[overflow-wrap:anywhere] [&>small]:text-xs [&>small]:text-(--color-pop-muted-ink)"
+                key={tool.path}
+              >
+                <span className="self-start rounded-full bg-[color-mix(in_oklch,var(--color-pop-secondary)_14%,white)] px-[7px] py-[3px] text-[11px] font-extrabold text-(--color-pop-primary)">
+                  {tool.method}
+                </span>
                 <code>{tool.path}</code>
                 <small>{tool.description}</small>
               </div>
@@ -235,15 +282,20 @@ export function ApiPage({
           </div>
         </section>
 
-        <section className="workspace-panel">
-          <div className="panel-title">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <Workflow size={18} />
             <strong>Agent workflows</strong>
           </div>
-          <div className="workflow-list">
+          <div className="grid gap-2">
             {(manifest?.workflows ?? []).map((workflow) => (
-              <div className="workflow-row" key={workflow.path}>
-                <span className="method-chip">{workflow.method}</span>
+              <div
+                className="grid grid-cols-[auto_minmax(0,1fr)] gap-1 border-t border-solid border-[#eee7dc] pt-2 [&>code]:[overflow-wrap:anywhere] [&>small]:text-xs [&>small]:text-(--color-pop-muted-ink)"
+                key={workflow.path}
+              >
+                <span className="self-start rounded-full bg-[color-mix(in_oklch,var(--color-pop-secondary)_14%,white)] px-[7px] py-[3px] text-[11px] font-extrabold text-(--color-pop-primary)">
+                  {workflow.method}
+                </span>
                 <code>{workflow.path}</code>
                 <small>{workflow.description}</small>
               </div>
@@ -251,14 +303,14 @@ export function ApiPage({
           </div>
         </section>
 
-        <section className="workspace-panel workflow-panel">
-          <div className="panel-title">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <ListChecks size={18} />
             <strong>Shopping-list workflow</strong>
           </div>
-          <div className="recipe-picker">
+          <div className="grid max-h-60 gap-2 overflow-auto rounded-lg border border-solid border-[#eee7dc] p-2.5">
             {recipes.map((recipe) => (
-              <label className="check-row" key={recipe.id}>
+              <label className={checkRowClassName} key={recipe.id}>
                 <input
                   checked={selectedRecipeIds.includes(recipe.id)}
                   onChange={() => toggleRecipe(recipe.id)}
@@ -268,7 +320,7 @@ export function ApiPage({
               </label>
             ))}
           </div>
-          <div className="button-row">
+          <div className={buttonRowClassName}>
             <Button
               onClick={() => setSelectedRecipeIds(recipes.map((recipe) => recipe.id))}
               size="sm"
@@ -290,17 +342,17 @@ export function ApiPage({
           </div>
         </section>
 
-        <section className="workspace-panel workflow-panel">
-          <div className="panel-title">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <FileText size={18} />
             <strong>Workflow output</strong>
           </div>
           {shoppingList ? (
             <>
-              <p className="inline-status">
+              <p className={inlineStatusClassName}>
                 {shoppingList.recipeCount} recipes, {shoppingList.items.length} items
               </p>
-              <ul className="result-list">
+              <ul className="m-0 grid max-h-[300px] list-none gap-2 overflow-auto p-0 [&>li]:grid [&>li]:gap-0.5 [&>li]:border-t [&>li]:border-solid [&>li]:border-[#eee7dc] [&>li]:pt-2 [&_span]:text-xs [&_span]:text-(--color-pop-muted-ink)">
                 {shoppingList.items.slice(0, 40).map((item) => (
                   <li key={`${item.text}-${item.recipes.join(",")}`}>
                     <strong>{item.text}</strong>
@@ -310,7 +362,7 @@ export function ApiPage({
               </ul>
             </>
           ) : (
-            <p className="empty-state">No workflow output yet.</p>
+            <p className="m-0 text-(--color-pop-muted-ink)">No workflow output yet.</p>
           )}
         </section>
       </div>
@@ -387,13 +439,13 @@ export function ExportPage({
   }
 
   return (
-    <section className="workspace-page">
+    <section className={workspacePageClassName}>
       <WorkspaceHeader
         description="Your recipe data belongs to you. Export portable JSON or Markdown at any time, preview the result, and mirror image assets before leaving another account behind."
         icon={<Download size={25} />}
         title="Export"
       >
-        <span className="status-pill">
+        <span className={inlineStatusClassName}>
           <CheckCircle2 size={16} />
           {message}
         </span>
@@ -403,7 +455,7 @@ export function ExportPage({
         </Button>
       </WorkspaceHeader>
 
-      <div className="metric-grid">
+      <div className="mt-[18px] grid grid-cols-4 gap-3 max-[860px]:grid-cols-1">
         <MetricCard
           detail="Included in JSON and Markdown"
           icon={<Database size={20} />}
@@ -430,21 +482,21 @@ export function ExportPage({
         />
       </div>
 
-      <div className="workspace-grid">
-        <section className="workspace-panel">
-          <div className="panel-title">
+      <div className="mt-3.5 grid grid-cols-2 gap-3.5 max-[860px]:grid-cols-1">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <Download size={18} />
             <strong>Downloads</strong>
           </div>
-          <div className="endpoint-grid">
-            <a className="endpoint-card" href="/api/export/recipes/json">
+          <div className="grid grid-cols-2 gap-2.5 max-[860px]:grid-cols-1">
+            <a className={endpointCardClassName} href="/api/export/recipes/json">
               <Database size={18} />
               <span>
                 <strong>All recipes JSON</strong>
                 <small>/api/export/recipes/json</small>
               </span>
             </a>
-            <a className="endpoint-card" href="/api/export/recipes/markdown">
+            <a className={endpointCardClassName} href="/api/export/recipes/markdown">
               <FileText size={18} />
               <span>
                 <strong>All recipes Markdown</strong>
@@ -453,7 +505,7 @@ export function ExportPage({
             </a>
             {selectedExportRecipe ? (
               <a
-                className="endpoint-card"
+                className={endpointCardClassName}
                 href={`/api/export/recipes/${selectedExportRecipe.id}/markdown`}
               >
                 <FileCode2 size={18} />
@@ -466,13 +518,13 @@ export function ExportPage({
           </div>
         </section>
 
-        <section className="workspace-panel">
-          <div className="panel-title">
+        <section className={workspacePanelClassName}>
+          <div className={panelTitleClassName}>
             <FileCode2 size={18} />
             <strong>Preview</strong>
           </div>
-          <div className="workspace-form">
-            <label className="field">
+          <div className="grid gap-2.5">
+            <label className={fieldClassName}>
               Recipe
               <select
                 onChange={(event) => setExportRecipeId(event.target.value)}
@@ -485,7 +537,7 @@ export function ExportPage({
                 ))}
               </select>
             </label>
-            <div className="button-row">
+            <div className={buttonRowClassName}>
               <Button onClick={() => void previewJson()} size="sm">
                 JSON
               </Button>
@@ -504,12 +556,14 @@ export function ExportPage({
           </div>
         </section>
 
-        <section className="workspace-panel preview-panel">
-          <div className="panel-title">
+        <section className={`${workspacePanelClassName} col-span-full`}>
+          <div className={panelTitleClassName}>
             <FileText size={18} />
             <strong>{previewTitle}</strong>
           </div>
-          <pre className="code-preview">{preview || "Choose an export preview."}</pre>
+          <pre className="m-0 max-h-[420px] overflow-auto whitespace-pre-wrap rounded-lg border-2 border-solid border-(--color-pop-ink) bg-(--color-pop-ink) p-3.5 text-xs text-(--color-pop-card)">
+            {preview || "Choose an export preview."}
+          </pre>
         </section>
       </div>
     </section>
@@ -624,13 +678,21 @@ export function SettingsPage({
   }, []);
 
   return (
-    <section className="workspace-page settings-page mx-auto w-full max-w-[1180px] justify-self-center">
+    <section
+      className={`${workspacePageBaseClassName} mx-auto w-full max-w-[1180px] justify-self-center bg-[#f9f7f0] [background-image:linear-gradient(180deg,rgba(255,253,248,0.72),rgba(249,247,240,0.96))]`}
+    >
       <WorkspaceHeader
         description="Manage your account and the recipe data you choose to bring in or take with you."
         icon={<SlidersHorizontal size={25} />}
         title="Settings"
       >
-        <span className={`settings-user-state ${session ? "signed-in" : "signed-out"}`}>
+        <span
+          className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-solid px-[11px] py-2 text-[13px] font-[760] ${
+            session
+              ? "border-(--color-sage-line) bg-(--color-sage-soft) text-(--color-sage)"
+              : "border-[#ead0b6] bg-[#fff8ed] text-[#8a4d2a]"
+          }`}
+        >
           <UserRound size={16} />
           {sessionLoading
             ? "Checking account"
@@ -640,10 +702,10 @@ export function SettingsPage({
         </span>
       </WorkspaceHeader>
 
-      <div className="settings-layout">
-        <section className="settings-card settings-account-card">
-          <div className="settings-card-heading">
-            <span>
+      <div className="mt-[18px] grid max-w-[1120px] grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] gap-3.5 max-[820px]:grid-cols-1">
+        <section className={settingsCardClassName}>
+          <div className={settingsCardHeadingClassName}>
+            <span className={settingsBadgeClassName}>
               <UserRound size={18} />
             </span>
             <div>
@@ -656,8 +718,8 @@ export function SettingsPage({
             </div>
           </div>
 
-          <div className="settings-account-summary">
-            <span className="settings-avatar">
+          <div className="grid grid-cols-[38px_minmax(0,1fr)] items-center gap-3 rounded-lg border border-solid border-(--color-line) bg-[rgba(255,250,243,0.76)] p-3 [&>div]:grid [&>div]:min-w-0 [&>div]:gap-[3px] [&_small]:text-xs [&_small]:leading-[1.35] [&_small]:text-(--color-fog) [&_strong]:truncate [&_strong]:text-[15px] [&_strong]:leading-[1.2] [&_strong]:text-(--color-ink)">
+            <span className={settingsBadgeClassName}>
               <UserRound size={20} />
             </span>
             <div>
@@ -678,7 +740,7 @@ export function SettingsPage({
             <AccountNameForm onRefreshSession={onRefreshSession} session={session} />
           ) : null}
 
-          <div className="settings-action-row">
+          <div className="flex flex-wrap items-center gap-2">
             {session ? (
               <Button onClick={() => void onSignOut()} size="sm">
                 Log out
@@ -698,9 +760,9 @@ export function SettingsPage({
           </div>
         </section>
 
-        <section className="settings-card">
-          <div className="settings-card-heading">
-            <span>
+        <section className={settingsCardClassName}>
+          <div className={settingsCardHeadingClassName}>
+            <span className={settingsBadgeClassName}>
               <Database size={18} />
             </span>
             <div>
@@ -712,9 +774,9 @@ export function SettingsPage({
             </div>
           </div>
 
-          <div className="settings-option-list">
+          <div className="grid gap-2">
             <button
-              className="settings-option"
+              className={settingsOptionClassName}
               onClick={() => onGoToPage("recipes")}
               type="button"
             >
@@ -727,7 +789,7 @@ export function SettingsPage({
               </span>
             </button>
             <button
-              className="settings-option"
+              className={settingsOptionClassName}
               onClick={() => onGoToPage("export")}
               type="button"
             >
@@ -740,7 +802,7 @@ export function SettingsPage({
               </span>
             </button>
             <button
-              className="settings-option"
+              className={settingsOptionClassName}
               onClick={() => void onRefreshRecipes()}
               type="button"
             >
@@ -751,7 +813,7 @@ export function SettingsPage({
               </span>
             </button>
             <button
-              className="settings-option"
+              className={settingsOptionClassName}
               onClick={() => void onMirrorImages()}
               type="button"
             >
@@ -762,29 +824,31 @@ export function SettingsPage({
               </span>
             </button>
           </div>
-          <p className="settings-message">{message}</p>
+          <p className="m-0 rounded-lg border border-solid border-(--color-sage-line) bg-[rgba(229,239,229,0.58)] px-3 py-2.5 text-xs font-bold leading-[1.35] text-(--color-sage)">
+            {message}
+          </p>
         </section>
 
         <details
-          className="settings-advanced"
+          className={settingsAdvancedClassName}
           onToggle={(event) => {
             if (event.currentTarget.open && !info) {
               void refreshDiagnostics();
             }
           }}
         >
-          <summary>
-            <span>
+          <summary className={settingsSummaryClassName}>
+            <span className="inline-flex min-w-0 items-center gap-2 [&>svg]:text-(--color-sage)">
               <Settings size={18} />
-              <span>
+              <span className="grid items-start gap-0.5 [&>small]:text-xs [&>small]:leading-[1.35] [&>small]:text-(--color-fog)">
                 <strong>Advanced diagnostics</strong>
                 <small>API, auth, and asset details for debugging.</small>
               </span>
             </span>
           </summary>
-          <div className="settings-diagnostics">
-            <div className="settings-action-row">
-              <span className={`api-status ${status}`}>
+          <div className="grid gap-3.5 px-[18px] pt-4 pb-[18px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={apiStatusClassName(status)}>
                 <ShieldCheck size={16} />
                 {status === "online" ? "API online" : `API ${status}`}
               </span>
@@ -793,7 +857,7 @@ export function SettingsPage({
                 Refresh diagnostics
               </Button>
             </div>
-            <div className="settings-list">
+            <div className="grid gap-2">
               <RuntimeRow label="Product" value={info?.product ?? "-"} />
               <RuntimeRow label="Version" value={info?.version ?? "-"} />
               <RuntimeRow label="API base path" value={info?.apiBasePath ?? "-"} />
@@ -807,7 +871,7 @@ export function SettingsPage({
                 value={info?.imageAssets.publicRoute ?? "-"}
               />
             </div>
-            <p className="inline-status">{settingsMessage}</p>
+            <p className={inlineStatusClassName}>{settingsMessage}</p>
           </div>
         </details>
       </div>
@@ -817,7 +881,7 @@ export function SettingsPage({
 
 export function BuildPage() {
   return (
-    <section className="build-page">
+    <section className={workspacePageClassName}>
       <header>
         <div>
           <h1>Build Your Own Recipe App</h1>
@@ -827,13 +891,18 @@ export function BuildPage() {
             another company account.
           </p>
         </div>
-        <a className="primary-link" href={githubUrl} rel="noreferrer" target="_blank">
+        <a
+          className="inline-flex min-h-[34px] min-w-max items-center gap-2 rounded-[7px] border border-solid border-(--color-pop-ink) bg-(--color-pop-ink) px-2.5 py-[7px] text-xs font-[650] text-white"
+          href={githubUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
           <Github size={18} />
           GitHub repo
           <ExternalLink size={15} />
         </a>
       </header>
-      <div className="principle-grid">
+      <div className="mt-6 grid grid-cols-4 gap-3 max-[820px]:grid-cols-1 [&>article]:rounded-lg [&>article]:border [&>article]:border-solid [&>article]:border-(--color-pop-ink) [&>article]:bg-(--color-pop-card) [&>article]:p-[18px] [&_h2]:mx-0 [&_h2]:mt-2.5 [&_h2]:mb-1.5 [&_h2]:text-lg [&_h2]:leading-[1.2] [&_p]:m-0 [&_p]:text-(--color-pop-muted-ink)">
         <article>
           <LockKeyhole size={20} />
           <h2>Local first</h2>
@@ -855,24 +924,24 @@ export function BuildPage() {
           <p>Recipe photos can be copied into public R2 URLs, no signed links.</p>
         </article>
       </div>
-      <section className="demo-script">
+      <section className="mt-3 grid gap-2.5 rounded-lg border border-solid border-(--color-pop-ink) bg-(--color-pop-card) p-[18px] [&>h2]:m-0 [&>h2]:text-lg [&>h2]:leading-[1.2]">
         <h2>Demo surface</h2>
-        <div className="script-row">
+        <div className="flex items-center gap-2.5 border-t border-solid border-[#eee7dc] pt-2.5">
           <Link2 size={18} />
           <span>Scrape a public recipe URL through `/api/import/website`.</span>
         </div>
-        <div className="script-row">
+        <div className="flex items-center gap-2.5 border-t border-solid border-[#eee7dc] pt-2.5">
           <KeyRound size={18} />
           <span>Import your StashCook recipes with your own session token.</span>
         </div>
-        <div className="script-row">
+        <div className="flex items-center gap-2.5 border-t border-solid border-[#eee7dc] pt-2.5">
           <FileCode2 size={18} />
           <span>
             Ask Codex to inspect `/openapi.json`, then build a meal plan, shopping
             workflow, or another UI.
           </span>
         </div>
-        <div className="script-row">
+        <div className="flex items-center gap-2.5 border-t border-solid border-[#eee7dc] pt-2.5">
           <Braces size={18} />
           <span>Demo endpoint: `POST /api/agents/workflows/shopping-list`.</span>
         </div>
@@ -895,25 +964,26 @@ export function WorkspaceHeader({
   title: string;
 }) {
   return (
-    <header className="workspace-header">
-      <div className="workspace-title">
+    <header className="flex items-start justify-between gap-6 border-b border-solid border-(--color-pop-ink) pb-[22px] max-[860px]:flex-col max-[860px]:items-stretch">
+      <div className="flex min-w-0 items-start gap-3">
         {onBack ? (
-          <Button
-            aria-label="Back to recipes"
-            className="workspace-back"
-            onClick={onBack}
-            size="icon"
-          >
+          <Button aria-label="Back to recipes" onClick={onBack} size="icon">
             <ArrowLeft size={17} />
           </Button>
         ) : null}
-        <span className="workspace-icon">{icon}</span>
+        <span className="inline-flex size-[42px] shrink-0 items-center justify-center rounded-lg border border-solid border-(--color-sage-line) bg-[color-mix(in_oklch,var(--color-pop-secondary)_14%,white)] text-(--color-pop-primary)">
+          {icon}
+        </span>
         <div>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>
       </div>
-      {children ? <div className="workspace-actions">{children}</div> : null}
+      {children ? (
+        <div className="flex flex-wrap justify-end gap-2 max-[820px]:w-full max-[820px]:items-stretch">
+          {children}
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -930,7 +1000,7 @@ export function MetricCard({
   value: string;
 }) {
   return (
-    <article className="metric-card">
+    <article className="flex min-w-0 items-start gap-3 rounded-lg border border-solid border-(--color-pop-ink) bg-(--color-pop-card) p-3.5 shadow-pop-sm [&>div]:grid [&>div]:min-w-0 [&>div]:gap-0.5 [&>span]:shrink-0 [&>span]:text-(--color-pop-primary) [&_em]:text-xs [&_em]:not-italic [&_em]:text-(--color-pop-muted-ink) [&_em]:[overflow-wrap:anywhere] [&_small]:text-xs [&_small]:text-(--color-pop-muted-ink) [&_strong]:truncate [&_strong]:text-lg [&_strong]:leading-[1.15] [&_strong]:text-(--color-pop-ink)">
       <span>{icon}</span>
       <div>
         <small>{label}</small>
@@ -943,7 +1013,7 @@ export function MetricCard({
 
 export function RuntimeRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="runtime-row">
+    <div className="grid grid-cols-[minmax(120px,180px)_minmax(0,1fr)] gap-2 border-t border-solid border-[#eee7dc] pt-2.5 [&>span]:text-xs [&>span]:text-(--color-pop-muted-ink) [&>strong]:[overflow-wrap:anywhere]">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>

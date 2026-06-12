@@ -10,7 +10,13 @@ const env = Object.fromEntries(
     .filter((line) => line.includes("=") && !line.trimStart().startsWith("#"))
     .map((line) => {
       const idx = line.indexOf("=");
-      return [line.slice(0, idx).trim(), line.slice(idx + 1).trim().replace(/^['"]|['"]$/g, "")];
+      return [
+        line.slice(0, idx).trim(),
+        line
+          .slice(idx + 1)
+          .trim()
+          .replace(/^['"]|['"]$/g, ""),
+      ];
     }),
 );
 

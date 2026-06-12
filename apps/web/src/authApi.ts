@@ -108,7 +108,7 @@ export const authApi = {
   }) =>
     authRequest<unknown>("/sign-up/email", {
       ...input,
-      callbackURL: "/app",
+      callbackURL: "/onboarding",
       rememberMe: true,
     }),
   signInEmail: (input: { email: string; password: string }) =>

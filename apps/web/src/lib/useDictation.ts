@@ -101,10 +101,10 @@ export function useDictation() {
     });
     // Browsers can't set an Authorization header on a WebSocket, so the JWT
     // rides in the Sec-WebSocket-Protocol subprotocol as ["bearer", <jwt>].
-    const ws = new WebSocket(
-      `wss://api.deepgram.com/v1/listen?${params.toString()}`,
-      ["bearer", token.token],
-    );
+    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
+      "bearer",
+      token.token,
+    ]);
     wsRef.current = ws;
 
     ws.addEventListener("open", () => {

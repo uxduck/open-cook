@@ -11,7 +11,7 @@ function Home() {
   const { session, openAuth } = useSession();
 
   return (
-    <main className="site-shell">
+    <main className="min-h-screen">
       <MarketingPage
         onAuthIntent={openAuth}
         onOpenApp={() => navigate({ to: "/app" })}
