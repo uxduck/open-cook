@@ -1,5 +1,6 @@
 import {
   ingredientDisplayText,
+  parseIngredientLine,
   parseRecipeYield,
   type Recipe,
   type RecipeIngredient,
@@ -11,6 +12,7 @@ import {
   structureSteps,
 } from "@open-cook/core";
 import {
+  BookOpenText,
   Clipboard,
   Clock3,
   Globe2,
@@ -19,6 +21,8 @@ import {
   Minus,
   Plus,
   Share2,
+  Sparkles,
+  Tags,
   UserRound,
   Wand2,
   X,
@@ -44,30 +48,33 @@ import {
 } from "./recipeViews";
 
 const structurePanelClassName =
-  "grid min-w-0 gap-3 rounded-lg border border-solid border-(--color-line) bg-(--color-panel) p-3.5";
+  "grid min-w-0 gap-2.5 rounded-xl border-2 border-solid border-(--color-ink) bg-(--color-panel) p-3 shadow-pop-sm";
 
 const structureHeadingClassName = "flex items-center justify-between gap-3";
 
 const structureHeadingLabelClassName =
-  "grid gap-0.5 [&>span]:text-xs [&>span]:font-[740] [&>span]:text-(--color-fog) [&>strong]:font-display [&>strong]:text-xl [&>strong]:font-[720] [&>strong]:leading-none [&>strong]:text-(--color-ink)";
+  "grid gap-0.5 [&>span]:w-fit [&>span]:rounded-full [&>span]:border [&>span]:border-solid [&>span]:border-(--color-sage-line) [&>span]:bg-(--color-sage-soft) [&>span]:px-1.5 [&>span]:py-0.5 [&>span]:text-[10px] [&>span]:font-[820] [&>span]:text-(--color-sage) [&>strong]:font-display [&>strong]:text-lg [&>strong]:font-[720] [&>strong]:leading-none [&>strong]:text-(--color-ink)";
 
 const ingCellClassName =
-  "w-full min-w-0 rounded-[7px] border border-solid border-transparent bg-[#fffaf2] px-2 py-[7px] text-[13px] font-[560] leading-[1.35] text-(--color-ink) outline-0 focus:border-[#c9ad8c] focus:bg-(--color-panel)";
+  "w-full min-w-0 rounded-[7px] border border-solid border-transparent bg-[#fffaf2] px-2 py-1 text-[12.5px] font-[560] leading-[1.25] text-(--color-ink) outline-0 focus:border-[#c9ad8c] focus:bg-(--color-panel)";
+
+const ingredientMetaFieldClassName =
+  "grid min-w-0 gap-0.5 rounded-md border border-solid border-[#eadcc9] bg-[#fffaf2] px-2 py-1 text-[9px] font-[820] uppercase leading-none text-(--color-fog) [&_input]:w-full [&_input]:min-w-0 [&_input]:border-0 [&_input]:bg-transparent [&_input]:p-0 [&_input]:text-[11.5px] [&_input]:font-[720] [&_input]:normal-case [&_input]:leading-[1.18] [&_input]:text-(--color-ink) [&_input]:outline-0 [&_input::placeholder]:text-[#8a8378]";
+
+const editorFieldClassName =
+  `${fieldClassName} gap-1.5! border-[#d8c5af]! bg-[rgba(255,253,248,0.88)]! p-2! transition-[border-color,box-shadow,transform] duration-150 focus-within:-translate-y-0.5 focus-within:border-(--color-sage)! focus-within:shadow-[0_0_0_3px_var(--color-sage-soft)]`;
+
+const editorAccentCardClassName =
+  "grid gap-2 rounded-lg border-2 border-solid border-(--color-ink) bg-[rgba(255,253,248,0.78)] p-2.5 shadow-[2px_2px_0_var(--color-ink)]";
 
 export function RecipeEditor({
   draft,
   onChange,
   onStructure,
-  onVisibilityChange,
-  ownerUserId,
-  persistedVisibility,
 }: {
   draft: Recipe;
   onChange: (recipe: Recipe) => void;
   onStructure: () => Promise<void>;
-  onVisibilityChange: (visibility: RecipeVisibility) => Promise<void>;
-  ownerUserId?: string | null;
-  persistedVisibility?: Recipe["visibility"];
 }) {
   const parsedYield = parseRecipeYield(draft.servings);
   const baseServings = parsedYield?.quantity;
@@ -112,95 +119,138 @@ export function RecipeEditor({
     : [];
 
   return (
-    <section className={`${detailPanelClassName} gap-4! bg-(--color-panel)! p-0!`}>
-      <section className={editorSectionClassName}>
-        <div className={sectionHeadingClassName}>
-          <strong>Recipe details</strong>
+    <section className={`${detailPanelClassName} gap-3! bg-transparent! p-0!`}>
+      <section className="grid flex-none gap-3 overflow-hidden rounded-xl border-2 border-solid border-(--color-ink) p-3 shadow-pop-sm [background:linear-gradient(135deg,rgba(254,231,207,0.72),rgba(255,253,248,0.96)_54%,rgba(229,239,229,0.84))]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="grid gap-1">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-solid border-(--color-line) bg-(--color-panel) px-2 py-0.5 text-[10.5px] font-[820] text-(--color-tomato-dark)">
+              <Sparkles size={12} />
+              Recipe card
+            </span>
+            <strong className="font-display text-xl font-[720] leading-none text-(--color-ink)">
+              Recipe details
+            </strong>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-solid border-(--color-sage-line) bg-(--color-sage-soft) px-2 py-0.5 text-[11px] font-[820] text-(--color-sage)">
+            <BookOpenText size={13} />
+            Edit mode
+          </span>
         </div>
-        <div className="grid grid-cols-[minmax(220px,1.05fr)_minmax(0,1fr)] gap-2.5 max-[720px]:grid-cols-1">
-          <label className={`${fieldClassName} col-span-full`}>
-            Title
-            <input
-              onChange={(event) => onChange({ ...draft, title: event.target.value })}
-              value={draft.title}
-            />
-          </label>
-          <label className={fieldClassName}>
-            Source URL
-            <input
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  source: {
-                    ...draft.source,
-                    url: event.target.value || undefined,
-                  },
-                })
-              }
-              value={draft.source?.url ?? ""}
-            />
-          </label>
+
+        <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(250px,0.55fr)] gap-3 max-[900px]:grid-cols-1">
+          <div className={editorAccentCardClassName}>
+            <label className={editorFieldClassName}>
+              Title
+              <input
+                onChange={(event) => onChange({ ...draft, title: event.target.value })}
+                value={draft.title}
+              />
+            </label>
+            <label className={editorFieldClassName}>
+              Description
+              <textarea
+                className="min-h-[48px]!"
+                onChange={(event) =>
+                  onChange({
+                    ...draft,
+                    description: event.target.value || undefined,
+                  })
+                }
+                placeholder="A quick intro, memory, or why this one works"
+                value={draft.description ?? ""}
+              />
+            </label>
+            <label className={editorFieldClassName}>
+              Source URL
+              <input
+                onChange={(event) =>
+                  onChange({
+                    ...draft,
+                    source: {
+                      ...draft.source,
+                      url: event.target.value || undefined,
+                    },
+                  })
+                }
+                value={draft.source?.url ?? ""}
+              />
+            </label>
+          </div>
+
+          <div className={editorAccentCardClassName}>
+            <div className="flex items-center gap-2 font-display text-lg font-[720] leading-none text-(--color-ink)">
+              <Clock3 size={16} />
+              Timing
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-[520px]:grid-cols-1">
+              <label className={editorFieldClassName}>
+                Prep
+                <input
+                  min="0"
+                  onChange={(event) =>
+                    onChange({
+                      ...draft,
+                      prepTimeMinutes: optionalNumber(event.target.value),
+                    })
+                  }
+                  type="number"
+                  value={draft.prepTimeMinutes ?? ""}
+                />
+              </label>
+              <label className={editorFieldClassName}>
+                Cook
+                <input
+                  min="0"
+                  onChange={(event) =>
+                    onChange({
+                      ...draft,
+                      cookTimeMinutes: optionalNumber(event.target.value),
+                    })
+                  }
+                  type="number"
+                  value={draft.cookTimeMinutes ?? ""}
+                />
+              </label>
+              <label className={editorFieldClassName}>
+                Servings
+                <input
+                  onChange={(event) =>
+                    onChange({ ...draft, servings: event.target.value })
+                  }
+                  value={draft.servings ?? ""}
+                />
+              </label>
+              <label className={editorFieldClassName}>
+                <span className="inline-flex items-center gap-1.5">
+                  <Tags size={13} />
+                  Tags
+                </span>
+                <input
+                  onChange={(event) =>
+                    onChange({
+                      ...draft,
+                      tags: event.target.value
+                        .split(",")
+                        .map((tag) => tag.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  value={draft.tags.join(", ")}
+                />
+              </label>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section
-        className={`${editorSectionClassName} grid-cols-[minmax(0,0.82fr)_minmax(220px,0.46fr)] max-[1180px]:grid-cols-1`}
-      >
-        <div className="grid grid-cols-3 gap-2.5 max-[720px]:grid-cols-1">
-          <label className={fieldClassName}>
-            Prep
-            <input
-              min="0"
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  prepTimeMinutes: optionalNumber(event.target.value),
-                })
-              }
-              type="number"
-              value={draft.prepTimeMinutes ?? ""}
-            />
-          </label>
-          <label className={fieldClassName}>
-            Cook
-            <input
-              min="0"
-              onChange={(event) =>
-                onChange({
-                  ...draft,
-                  cookTimeMinutes: optionalNumber(event.target.value),
-                })
-              }
-              type="number"
-              value={draft.cookTimeMinutes ?? ""}
-            />
-          </label>
-          <label className={fieldClassName}>
-            Servings
-            <input
-              onChange={(event) => onChange({ ...draft, servings: event.target.value })}
-              value={draft.servings ?? ""}
-            />
-          </label>
-        </div>
-        <label className={fieldClassName}>
-          Tags
-          <input
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                tags: event.target.value
-                  .split(",")
-                  .map((tag) => tag.trim())
-                  .filter(Boolean),
-              })
-            }
-            value={draft.tags.join(", ")}
-          />
-        </label>
-      </section>
+      <RecipeImageGallery
+        images={recipeImagesOf(draft)}
+        onChange={(images) => onChange({ ...draft, images, imageUrl: images[0]?.url })}
+        recipeId={recipeId}
+        title={draft.title}
+      />
 
-      <section className="grid flex-none grid-cols-[minmax(430px,0.98fr)_minmax(360px,1fr)] items-start gap-3 max-[1180px]:grid-cols-1">
+      <section className="grid flex-none grid-cols-[minmax(430px,0.98fr)_minmax(360px,1fr)] items-start gap-4 max-[1180px]:grid-cols-1">
         <StructuredIngredientsEditor
           baseServings={baseServings}
           draft={draft}
@@ -223,7 +273,7 @@ export function RecipeEditor({
       </section>
 
       {reviewFlags.length ? (
-        <section className="grid min-w-0 gap-3 rounded-lg border border-solid border-(--color-line) bg-[#fffaf2] p-3.5 [&>div]:flex [&>div]:flex-wrap [&>div]:gap-[7px] [&>strong]:text-[13px] [&>strong]:font-[820] [&>strong]:text-(--color-ink) [&_span]:rounded-full [&_span]:border [&_span]:border-solid [&_span]:border-[#e8cda8] [&_span]:bg-[#fff3df] [&_span]:px-2 [&_span]:py-[5px] [&_span]:text-[11px] [&_span]:font-[780] [&_span]:text-[#8b5529]">
+        <section className="grid min-w-0 gap-2 rounded-lg border border-solid border-(--color-line) bg-[#fffaf2] p-2.5 [&>div]:flex [&>div]:flex-wrap [&>div]:gap-[6px] [&>strong]:text-[13px] [&>strong]:font-[820] [&>strong]:text-(--color-ink) [&_span]:rounded-full [&_span]:border [&_span]:border-solid [&_span]:border-[#e8cda8] [&_span]:bg-[#fff3df] [&_span]:px-2 [&_span]:py-1 [&_span]:text-[11px] [&_span]:font-[780] [&_span]:text-[#8b5529]">
           <strong>Review flags</strong>
           <div>
             {[...new Set(reviewFlags)].slice(0, 5).map((flag) => (
@@ -233,19 +283,6 @@ export function RecipeEditor({
         </section>
       ) : null}
 
-      <RecipeImageGallery
-        images={recipeImagesOf(draft)}
-        onChange={(images) => onChange({ ...draft, images, imageUrl: images[0]?.url })}
-        recipeId={recipeId}
-        title={draft.title}
-      />
-
-      <SharingSection
-        draft={draft}
-        onVisibilityChange={onVisibilityChange}
-        ownerUserId={ownerUserId}
-        persistedVisibility={persistedVisibility}
-      />
     </section>
   );
 }
@@ -525,11 +562,30 @@ export function StructuredIngredientsEditor({
   }
 
   function updateIngredientLine(index: number, text: string) {
+    const nextIngredients = ingredients.map((ingredient, itemIndex) => {
+      if (itemIndex !== index) {
+        return ingredient;
+      }
+
+      if (!hasStructuredIngredients) {
+        return { ...ingredient, text };
+      }
+
+      const parsed = parseIngredientLine(text);
+      return {
+        ...parsed,
+        id: ingredient.id || `ingredient-${index + 1}`,
+        note: parsed.note ?? ingredient.note,
+        section: ingredient.section,
+      };
+    });
+
     onChange({
       ...draft,
-      ingredients: ingredients.map((ingredient, itemIndex) =>
-        itemIndex === index ? { ...ingredient, text } : ingredient,
-      ),
+      ingredients: nextIngredients,
+      steps: hasStructuredIngredients
+        ? structureSteps(draft.steps, nextIngredients)
+        : draft.steps,
     });
   }
 
@@ -538,11 +594,52 @@ export function StructuredIngredientsEditor({
       <div className={structureHeadingClassName}>
         <div className={structureHeadingLabelClassName}>
           <strong>Ingredients</strong>
-          <span>
-            {ingredients.length} {hasStructuredIngredients ? "rows" : "lines"}
-          </span>
+          <span>{ingredients.length} ingredients</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {hasStructuredIngredients ? (
+            <div className="flex min-h-8 items-center gap-2 rounded-lg border border-solid border-[#e4d4c2] bg-[#fffaf2] px-2 py-1 text-xs font-[820] text-(--color-ink) max-[720px]:w-full max-[720px]:justify-between">
+              <span>Scale</span>
+              <div className="grid grid-cols-[24px_44px_24px] items-center">
+                <button
+                  aria-label="Decrease servings"
+                  className="inline-flex h-6 items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-md last:rounded-r-md"
+                  disabled={!baseServings}
+                  onClick={() => setTargetServings(Math.max(1, targetServings - 1))}
+                  type="button"
+                >
+                  <Minus size={13} />
+                </button>
+                <input
+                  aria-label="Target servings"
+                  className="h-6 w-11 min-w-0 border-y border-x-0 border-solid border-[#d8c8b5] bg-(--color-panel) text-center text-[12px] font-[760] text-(--color-ink) outline-0"
+                  disabled={!baseServings}
+                  min="1"
+                  onChange={(event) =>
+                    setTargetServings(optionalNumber(event.target.value) ?? 1)
+                  }
+                  type="number"
+                  value={targetServings}
+                />
+                <button
+                  aria-label="Increase servings"
+                  className="inline-flex h-6 items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-md last:rounded-r-md"
+                  disabled={!baseServings}
+                  onClick={() => setTargetServings(targetServings + 1)}
+                  type="button"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+              <small className="text-[11px] font-[680] text-(--color-fog)">
+                {baseServings
+                  ? `${baseServings} -> ${targetServings} ${
+                      servingsUnit ?? "servings"
+                    }`
+                  : "No numeric servings"}
+              </small>
+            </div>
+          ) : null}
           {!hasStructuredIngredients ? (
             <Button onClick={() => void onStructure()} size="sm">
               <Wand2 size={15} />
@@ -556,179 +653,135 @@ export function StructuredIngredientsEditor({
         </div>
       </div>
 
-      {hasStructuredIngredients ? (
-        <div className="grid grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-2.5 rounded-lg border border-solid border-[#e4d4c2] bg-[#fffaf2] p-2 max-[720px]:grid-cols-1 max-[720px]:items-stretch [&>small]:text-xs [&>small]:text-(--color-fog) [&>span]:text-xs [&>span]:font-[820] [&>span]:text-(--color-ink)">
-          <span>Scale</span>
-          <div className="grid grid-cols-[30px_58px_30px] items-center">
-            <button
-              aria-label="Decrease servings"
-              className="inline-flex h-[30px] items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-lg last:rounded-r-lg"
-              disabled={!baseServings}
-              onClick={() => setTargetServings(Math.max(1, targetServings - 1))}
-              type="button"
+      <div className="grid min-w-0 gap-2">
+        {ingredients.map((ingredient, index) => {
+          const showScaled =
+            hasStructuredIngredients &&
+            scaleFactor !== 1 &&
+            ingredient.scalable !== false;
+          const ingredientLine = hasStructuredIngredients
+            ? ingredientDisplayText(ingredient, 1, { includeNote: false })
+            : ingredient.text;
+          return (
+            <article
+              className="grid gap-1.5 rounded-lg border border-solid border-[#e1d4c2] bg-[rgba(255,253,248,0.92)] p-2 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4]"
+              key={ingredient.id ?? `${ingredient.text}-${index}`}
             >
-              <Minus size={14} />
-            </button>
-            <input
-              aria-label="Target servings"
-              className="h-[30px] w-[58px] min-w-0 border-y border-x-0 border-solid border-[#d8c8b5] bg-(--color-panel) text-center text-[13px] font-[760] text-(--color-ink) outline-0"
-              disabled={!baseServings}
-              min="1"
-              onChange={(event) =>
-                setTargetServings(optionalNumber(event.target.value) ?? 1)
-              }
-              type="number"
-              value={targetServings}
-            />
-            <button
-              aria-label="Increase servings"
-              className="inline-flex h-[30px] items-center justify-center rounded-none border border-solid border-[#d8c8b5] bg-(--color-panel) p-0 text-(--color-ink) first:rounded-l-lg last:rounded-r-lg"
-              disabled={!baseServings}
-              onClick={() => setTargetServings(targetServings + 1)}
-              type="button"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-          <small>
-            {baseServings
-              ? `${baseServings} -> ${targetServings} ${servingsUnit ?? "servings"}`
-              : "Numeric servings unavailable"}
-          </small>
-        </div>
-      ) : null}
-
-      {!hasStructuredIngredients ? (
-        <div className="grid gap-2">
-          {ingredients.map((ingredient, index) => (
-            <div
-              className="grid grid-cols-[minmax(0,1fr)_34px] items-center gap-2 rounded-lg border border-solid border-[#e1d4c2] bg-(--color-panel) p-2 [&>input]:w-full [&>input]:min-w-0 [&>input]:rounded-md [&>input]:border [&>input]:border-solid [&>input]:border-transparent [&>input]:bg-[#fffaf2] [&>input]:p-2 [&>input]:text-sm [&>input]:font-[560] [&>input]:leading-[1.35] [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input]:focus:border-[#c9ad8c] [&>input]:focus:bg-(--color-panel)"
-              key={ingredient.id ?? index}
-            >
-              <input
-                aria-label={`Ingredient line ${index + 1}`}
-                onChange={(event) => updateIngredientLine(index, event.target.value)}
-                value={ingredient.text}
-              />
-              <Button
-                aria-label={`Remove ingredient ${index + 1}`}
-                onClick={() => removeIngredient(index)}
-                size="icon"
-                variant="ghost"
-              >
-                <X size={14} />
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {hasStructuredIngredients ? (
-        <div className="grid min-w-0 gap-2">
-          {ingredients.map((ingredient, index) => {
-            const showScaled = scaleFactor !== 1 && ingredient.scalable !== false;
-            return (
               <div
-                className="grid grid-cols-[3rem_3.25rem_minmax(0,1fr)_2rem] items-center gap-x-[7px] gap-y-1.5 rounded-[10px] border border-solid border-[#e1d4c2] bg-(--color-panel) p-2 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4]"
-                key={ingredient.id ?? `${ingredient.text}-${index}`}
+                className={
+                  hasStructuredIngredients
+                    ? "grid grid-cols-[24px_minmax(126px,1.3fr)_minmax(52px,0.38fr)_minmax(58px,0.42fr)_minmax(92px,0.68fr)_minmax(110px,0.78fr)_28px] items-center gap-1.5 max-[960px]:grid-cols-[24px_minmax(0,1fr)_28px]"
+                    : "grid grid-cols-[24px_minmax(0,1fr)_28px] items-center gap-1.5"
+                }
               >
+                <span className="inline-flex size-6 items-center justify-center rounded-full border border-solid border-(--color-sage-line) bg-(--color-sage-soft) text-[10.5px] font-[860] text-(--color-sage)">
+                  {index + 1}
+                </span>
                 <input
-                  className={`${ingCellClassName} text-center font-[720]`}
-                  aria-label={`Ingredient ${index + 1} quantity`}
-                  onChange={(event) => {
-                    const valueText = event.target.value;
-                    updateIngredient(index, {
-                      ...ingredient,
-                      quantity: {
-                        ...ingredient.quantity,
-                        value: optionalQuantity(valueText),
-                        valueText,
-                      },
-                      scalable: Boolean(valueText),
-                    });
-                  }}
-                  placeholder="Qty"
-                  value={ingredient.quantity?.valueText ?? ""}
-                />
-                <input
-                  className={`${ingCellClassName} text-center font-[720]`}
-                  aria-label={`Ingredient ${index + 1} unit`}
-                  onChange={(event) =>
-                    updateIngredient(index, {
-                      ...ingredient,
-                      quantity: {
-                        ...ingredient.quantity,
-                        unit: event.target.value || undefined,
-                      },
-                    })
-                  }
-                  placeholder="Unit"
-                  value={ingredient.quantity?.unit ?? ""}
-                />
-                <input
-                  className={`${ingCellClassName} font-[620]`}
-                  aria-label={`Ingredient ${index + 1} item`}
-                  onChange={(event) =>
-                    updateIngredient(index, {
-                      ...ingredient,
-                      item: event.target.value,
-                    })
-                  }
+                  aria-label={`Ingredient ${index + 1}`}
+                  className={`${ingCellClassName} bg-[#fff8ed] text-[13px] font-[740]`}
+                  onChange={(event) => updateIngredientLine(index, event.target.value)}
                   placeholder="Ingredient"
-                  value={ingredient.item ?? ingredient.text}
+                  value={ingredientLine}
                 />
+                {hasStructuredIngredients ? (
+                  <>
+                    <label className={`${ingredientMetaFieldClassName} max-[960px]:col-[2/-1]`}>
+                      Qty
+                      <input
+                        aria-label={`Ingredient ${index + 1} quantity`}
+                        onChange={(event) => {
+                          const valueText = event.target.value;
+                          updateIngredient(index, {
+                            ...ingredient,
+                            quantity: {
+                              ...ingredient.quantity,
+                              value: optionalQuantity(valueText),
+                              valueText,
+                            },
+                            scalable: Boolean(valueText),
+                          });
+                        }}
+                        placeholder="-"
+                        value={ingredient.quantity?.valueText ?? ""}
+                      />
+                    </label>
+                    <label className={`${ingredientMetaFieldClassName} max-[960px]:col-[2/-1]`}>
+                      Unit
+                      <input
+                        aria-label={`Ingredient ${index + 1} unit`}
+                        onChange={(event) =>
+                          updateIngredient(index, {
+                            ...ingredient,
+                            quantity: {
+                              ...ingredient.quantity,
+                              unit: event.target.value || undefined,
+                            },
+                          })
+                        }
+                        placeholder="-"
+                        value={ingredient.quantity?.unit ?? ""}
+                      />
+                    </label>
+                    <label className={`${ingredientMetaFieldClassName} max-[960px]:col-[2/-1]`}>
+                      Prep
+                      <input
+                        aria-label={`Ingredient ${index + 1} preparation`}
+                        onChange={(event) =>
+                          updateIngredient(index, {
+                            ...ingredient,
+                            preparation: event.target.value || undefined,
+                          })
+                        }
+                        placeholder="optional"
+                        value={ingredient.preparation ?? ""}
+                      />
+                    </label>
+                    <label className={`${ingredientMetaFieldClassName} max-[960px]:col-[2/-1]`}>
+                      Note
+                      <input
+                        aria-label={`Ingredient ${index + 1} note`}
+                        onChange={(event) =>
+                          updateIngredient(index, {
+                            ...ingredient,
+                            note: event.target.value || undefined,
+                          })
+                        }
+                        placeholder="optional"
+                        value={ingredient.note ?? ""}
+                      />
+                    </label>
+                  </>
+                ) : null}
                 <Button
                   aria-label={`Remove ingredient ${index + 1}`}
+                  className={hasStructuredIngredients ? "max-[960px]:col-[3] max-[960px]:row-[1]" : ""}
                   onClick={() => removeIngredient(index)}
                   size="icon"
                   variant="ghost"
                 >
                   <X size={14} />
                 </Button>
-                <div className="col-span-full flex min-w-0 items-center gap-[7px]">
-                  <input
-                    className={`${ingCellClassName} flex-auto text-xs`}
-                    aria-label={`Ingredient ${index + 1} preparation`}
-                    onChange={(event) =>
-                      updateIngredient(index, {
-                        ...ingredient,
-                        preparation: event.target.value || undefined,
-                      })
-                    }
-                    placeholder="Prep. Diced, chopped…"
-                    value={ingredient.preparation ?? ""}
-                  />
-                  {showScaled ? (
-                    <span
-                      className="max-w-[55%] flex-initial truncate rounded-full border border-solid border-[#d2ddcf] bg-[#eff4ec] px-2.5 py-[5px] text-[11px] font-[760] text-(--color-sage)"
-                      title="Scaled to servings"
-                    >
-                      → {ingredientDisplayText(ingredient, scaleFactor)}
-                    </span>
-                  ) : null}
-                </div>
-                <input
-                  className={`${ingCellClassName} col-span-full text-xs`}
-                  aria-label={`Ingredient ${index + 1} note`}
-                  onChange={(event) =>
-                    updateIngredient(index, {
-                      ...ingredient,
-                      note: event.target.value || undefined,
-                    })
-                  }
-                  placeholder="Note. Optional detail from the source"
-                  value={ingredient.note ?? ""}
-                />
-                {ingredient.warnings?.length ? (
-                  <span className="col-span-full text-[11px] font-[760] leading-[1.25] text-[#9f6130]">
-                    {ingredient.warnings[0]}
-                  </span>
-                ) : null}
               </div>
-            );
-          })}
-        </div>
-      ) : null}
+
+              {showScaled ? (
+                <span
+                  className="ml-7 inline-flex w-fit max-w-full items-center rounded-md border border-solid border-[#d2ddcf] bg-[#eff4ec] px-2 py-0.5 text-[10.5px] font-[760] leading-snug text-(--color-sage)"
+                  title="Scaled to servings"
+                >
+                  Scaled: {ingredientDisplayText(ingredient, scaleFactor)}
+                </span>
+              ) : null}
+
+              {ingredient.warnings?.length ? (
+                <span className="ml-7 rounded-md border border-solid border-[#e8cda8] bg-[#fff3df] px-2 py-1 text-[10.5px] font-[760] leading-[1.25] text-[#9f6130]">
+                  {ingredient.warnings[0]}
+                </span>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -786,18 +839,18 @@ export function StructuredMethodEditor({
         </Button>
       </div>
 
-      <div className="grid gap-[9px]">
+      <div className="grid gap-2">
         {steps.map((step, index) => (
           <article
-            className="grid grid-cols-[32px_minmax(0,1fr)_34px] items-start gap-2 rounded-[10px] border border-solid border-[#e1d4c2] bg-(--color-panel) p-2.5 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4] max-[720px]:grid-cols-[30px_minmax(0,1fr)]"
+            className="grid grid-cols-[26px_minmax(0,1fr)_30px] items-start gap-2 rounded-lg border border-solid border-[#e1d4c2] bg-(--color-panel) p-2.5 transition-[border-color,box-shadow] duration-150 focus-within:border-[#c9ad8c] focus-within:shadow-[0_0_0_3px_#f3e7d4] max-[720px]:grid-cols-[26px_minmax(0,1fr)]"
             key={step.id ?? `${step.text}-${index}`}
           >
-            <div className="inline-flex size-7 items-center justify-center rounded-full border border-solid border-[#d2ddcf] bg-[#eff4ec] text-[13px] font-[820] text-(--color-sage)">
+            <div className="inline-flex size-6 items-center justify-center rounded-full border border-solid border-[#d2ddcf] bg-[#eff4ec] text-[10.5px] font-[820] text-(--color-sage)">
               {index + 1}
             </div>
             <textarea
               aria-label={`Method step ${index + 1}`}
-              className={`${ingCellClassName} min-h-[58px] resize-y`}
+              className={`${ingCellClassName} min-h-[38px] resize-y`}
               onChange={(event) => {
                 const [nextStep] = hasStructuredIngredients
                   ? structureSteps([{ ...step, text: event.target.value }], ingredients)
@@ -819,10 +872,10 @@ export function StructuredMethodEditor({
               <X size={14} />
             </Button>
             {hasStructuredIngredients ? (
-              <div className="col-[2/-1] flex flex-wrap gap-1.5 max-[720px]:col-span-full">
+              <div className="col-[2/-1] flex flex-wrap gap-1 max-[720px]:col-span-full">
                 {step.timers?.map((timer) => (
                   <span
-                    className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]"
+                    className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-0.5 text-[10.5px] font-[780] text-[#34545c]"
                     key={`${step.id ?? step.text}-timer-${timer.label ?? ""}-${timer.minutes}`}
                   >
                     <Clock3 size={13} />
@@ -830,7 +883,7 @@ export function StructuredMethodEditor({
                   </span>
                 ))}
                 {step.temperature ? (
-                  <span className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]">
+                  <span className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-0.5 text-[10.5px] font-[780] text-[#34545c]">
                     {step.temperature.value}
                     {step.temperature.unit}
                   </span>
@@ -841,7 +894,7 @@ export function StructuredMethodEditor({
                   );
                   return ingredient ? (
                     <span
-                      className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-1 text-[11px] font-[780] text-[#34545c]"
+                      className="inline-flex max-w-[180px] items-center gap-1 truncate rounded-full border border-solid border-[#d4e5e8] bg-[#eef5f6] px-[7px] py-0.5 text-[10.5px] font-[780] text-[#34545c]"
                       key={ingredientId}
                     >
                       {ingredient.item ?? ingredient.text}

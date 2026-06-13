@@ -2,11 +2,12 @@
 // (api.agentpaid.io), which exposes credit currencies and product attributes
 // that @paid-ai/paid-node 1.7.0 does not. Uses PAID_API_KEY from apps/api/.env.
 //
+// Public pricing sells one consumer Chef subscription. Paid still models AI
+// allowance with credits internally:
 // - credit currency "OpenCook Credits" (key: opencook_credits), 1 credit ≈ £0.02
 // - opencook            usage attribute: restyle_generated burns 25 credits
 // - opencook-pro        £3.99/mo recurring + 500 credits granted monthly
-// - opencook-credits-5  £5 one-time + 250 credits upfront
-// - opencook-credits-10 £10 one-time + 500 credits upfront
+// - opencook-credits-*  internal/future top-ups, not shown on consumer pricing
 import { readFileSync } from "node:fs";
 
 const env = Object.fromEntries(
@@ -56,7 +57,7 @@ if (currency) {
     name: "OpenCook Credits",
     key: "opencook_credits",
     description:
-      "OpenCook spendable credits. Restyle = 25 credits, story = 50 credits (1 credit ≈ £0.02).",
+      "OpenCook internal AI allowance credits. AI edit = 25 credits, story = 50 credits (1 credit ≈ £0.02).",
   });
   console.log("created credit currency:", JSON.stringify(currency));
 }
@@ -73,7 +74,7 @@ const updates = {
     active: true,
     productAttributes: [
       {
-        name: "Recipe restyle",
+        name: "AI recipe edit",
         active: true,
         pricing: {
           pricingType: "UsagePrepaidCredits",
@@ -112,7 +113,7 @@ const updates = {
     active: true,
     productAttributes: [
       {
-        name: "Credit pack (250 credits)",
+        name: "Internal top-up (250 credits)",
         active: true,
         pricing: {
           pricingType: "OneTimePerUnit",
@@ -133,7 +134,7 @@ const updates = {
     active: true,
     productAttributes: [
       {
-        name: "Credit pack (500 credits)",
+        name: "Internal top-up (500 credits)",
         active: true,
         pricing: {
           pricingType: "OneTimePerUnit",

@@ -1,5 +1,6 @@
 import { createRecipeRecord, decodeHtmlEntities, type Recipe } from "@open-cook/core";
 import { appVersion } from "../../AppMetadata";
+import { workersAiModels } from "../../ai/workersAiModels";
 import {
   type WorkersAiBinding as RecipeAiBinding,
   workersAiResponseObject,
@@ -12,11 +13,9 @@ export type WebsiteImportInput = {
 
 type WebsiteImportOptions = {
   ai?: RecipeAiBinding;
-  aiModel?: string;
   fetcher?: typeof fetch;
 };
 
-const defaultWebsiteImportAiModel = "@cf/moonshotai/kimi-k2.6";
 const maxAiPageTextLength = 18_000;
 
 export async function importRecipeFromWebsite(
@@ -51,7 +50,7 @@ export async function importRecipeFromWebsite(
   return recipeFromPageTextWithAi({
     ai: options.ai,
     html,
-    model: options.aiModel || defaultWebsiteImportAiModel,
+    model: workersAiModels.websiteImport,
     url: input.url,
   });
 }

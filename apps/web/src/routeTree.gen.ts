@@ -17,9 +17,25 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GSlugRouteImport } from './routes/g.$slug'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppRecipesRouteImport } from './routes/app.recipes'
+import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
+import { Route as AppImportRouteImport } from './routes/app.import'
+import { Route as AppGatheringsRouteImport } from './routes/app.gatherings'
+import { Route as AppExportRouteImport } from './routes/app.export'
+import { Route as AppCookbooksRouteImport } from './routes/app.cookbooks'
+import { Route as AppBuildRouteImport } from './routes/app.build'
+import { Route as AppBillingRouteImport } from './routes/app.billing'
+import { Route as AppApiRouteImport } from './routes/app.api'
 import { Route as ROwnerIdIdRouteImport } from './routes/r.$ownerId.$id'
-import { Route as GSlugVideoRouteImport } from './routes/g.$slug.video'
+import { Route as GSlugVideoRouteImport } from './routes/g.$slug_.video'
+import { Route as AppRecipesRecipeIdRouteImport } from './routes/app.recipes.$recipeId'
+import { Route as AppGatheringsGatheringIdRouteImport } from './routes/app.gatherings.$gatheringId'
 import { Route as GSlugRRecipeIdRouteImport } from './routes/g.$slug_.r.$recipeId'
+import { Route as CSlugRRecipeIdRouteImport } from './routes/c.$slug.r.$recipeId'
+import { Route as AppRecipesRecipeIdEditRouteImport } from './routes/app.recipes.$recipeId.edit'
+import { Route as AppGatheringsGatheringIdShareRouteImport } from './routes/app.gatherings.$gatheringId.share'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -61,60 +77,190 @@ const GSlugRoute = GSlugRouteImport.update({
   path: '/g/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRecipesRoute = AppRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPreferencesRoute = AppPreferencesRouteImport.update({
+  id: '/preferences',
+  path: '/preferences',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppImportRoute = AppImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGatheringsRoute = AppGatheringsRouteImport.update({
+  id: '/gatherings',
+  path: '/gatherings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExportRoute = AppExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCookbooksRoute = AppCookbooksRouteImport.update({
+  id: '/cookbooks',
+  path: '/cookbooks',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBuildRoute = AppBuildRouteImport.update({
+  id: '/build',
+  path: '/build',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBillingRoute = AppBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApiRoute = AppApiRouteImport.update({
+  id: '/api',
+  path: '/api',
+  getParentRoute: () => AppRoute,
+} as any)
 const ROwnerIdIdRoute = ROwnerIdIdRouteImport.update({
   id: '/r/$ownerId/$id',
   path: '/r/$ownerId/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GSlugVideoRoute = GSlugVideoRouteImport.update({
-  id: '/video',
-  path: '/video',
-  getParentRoute: () => GSlugRoute,
+  id: '/g/$slug_/video',
+  path: '/g/$slug/video',
+  getParentRoute: () => rootRouteImport,
 } as any)
+const AppRecipesRecipeIdRoute = AppRecipesRecipeIdRouteImport.update({
+  id: '/$recipeId',
+  path: '/$recipeId',
+  getParentRoute: () => AppRecipesRoute,
+} as any)
+const AppGatheringsGatheringIdRoute =
+  AppGatheringsGatheringIdRouteImport.update({
+    id: '/$gatheringId',
+    path: '/$gatheringId',
+    getParentRoute: () => AppGatheringsRoute,
+  } as any)
 const GSlugRRecipeIdRoute = GSlugRRecipeIdRouteImport.update({
   id: '/g/$slug_/r/$recipeId',
   path: '/g/$slug/r/$recipeId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CSlugRRecipeIdRoute = CSlugRRecipeIdRouteImport.update({
+  id: '/r/$recipeId',
+  path: '/r/$recipeId',
+  getParentRoute: () => CSlugRoute,
+} as any)
+const AppRecipesRecipeIdEditRoute = AppRecipesRecipeIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => AppRecipesRecipeIdRoute,
+} as any)
+const AppGatheringsGatheringIdShareRoute =
+  AppGatheringsGatheringIdShareRouteImport.update({
+    id: '/share',
+    path: '/share',
+    getParentRoute: () => AppGatheringsGatheringIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
-  '/g/$slug': typeof GSlugRouteWithChildren
+  '/app/api': typeof AppApiRoute
+  '/app/billing': typeof AppBillingRoute
+  '/app/build': typeof AppBuildRoute
+  '/app/cookbooks': typeof AppCookbooksRoute
+  '/app/export': typeof AppExportRoute
+  '/app/gatherings': typeof AppGatheringsRouteWithChildren
+  '/app/import': typeof AppImportRoute
+  '/app/preferences': typeof AppPreferencesRoute
+  '/app/recipes': typeof AppRecipesRouteWithChildren
+  '/app/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRouteWithChildren
+  '/g/$slug': typeof GSlugRoute
+  '/app/gatherings/$gatheringId': typeof AppGatheringsGatheringIdRouteWithChildren
+  '/app/recipes/$recipeId': typeof AppRecipesRecipeIdRouteWithChildren
   '/g/$slug/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/app/gatherings/$gatheringId/share': typeof AppGatheringsGatheringIdShareRoute
+  '/app/recipes/$recipeId/edit': typeof AppRecipesRecipeIdEditRoute
+  '/c/$slug/r/$recipeId': typeof CSlugRRecipeIdRoute
   '/g/$slug/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
-  '/g/$slug': typeof GSlugRouteWithChildren
+  '/app/api': typeof AppApiRoute
+  '/app/billing': typeof AppBillingRoute
+  '/app/build': typeof AppBuildRoute
+  '/app/cookbooks': typeof AppCookbooksRoute
+  '/app/export': typeof AppExportRoute
+  '/app/gatherings': typeof AppGatheringsRouteWithChildren
+  '/app/import': typeof AppImportRoute
+  '/app/preferences': typeof AppPreferencesRoute
+  '/app/recipes': typeof AppRecipesRouteWithChildren
+  '/app/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRouteWithChildren
+  '/g/$slug': typeof GSlugRoute
+  '/app/gatherings/$gatheringId': typeof AppGatheringsGatheringIdRouteWithChildren
+  '/app/recipes/$recipeId': typeof AppRecipesRecipeIdRouteWithChildren
   '/g/$slug/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/app/gatherings/$gatheringId/share': typeof AppGatheringsGatheringIdShareRoute
+  '/app/recipes/$recipeId/edit': typeof AppRecipesRecipeIdEditRoute
+  '/c/$slug/r/$recipeId': typeof CSlugRRecipeIdRoute
   '/g/$slug/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
-  '/g/$slug': typeof GSlugRouteWithChildren
-  '/g/$slug/video': typeof GSlugVideoRoute
+  '/app/api': typeof AppApiRoute
+  '/app/billing': typeof AppBillingRoute
+  '/app/build': typeof AppBuildRoute
+  '/app/cookbooks': typeof AppCookbooksRoute
+  '/app/export': typeof AppExportRoute
+  '/app/gatherings': typeof AppGatheringsRouteWithChildren
+  '/app/import': typeof AppImportRoute
+  '/app/preferences': typeof AppPreferencesRoute
+  '/app/recipes': typeof AppRecipesRouteWithChildren
+  '/app/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRouteWithChildren
+  '/g/$slug': typeof GSlugRoute
+  '/app/gatherings/$gatheringId': typeof AppGatheringsGatheringIdRouteWithChildren
+  '/app/recipes/$recipeId': typeof AppRecipesRecipeIdRouteWithChildren
+  '/g/$slug_/video': typeof GSlugVideoRoute
   '/r/$ownerId/$id': typeof ROwnerIdIdRoute
+  '/app/gatherings/$gatheringId/share': typeof AppGatheringsGatheringIdShareRoute
+  '/app/recipes/$recipeId/edit': typeof AppRecipesRecipeIdEditRoute
+  '/c/$slug/r/$recipeId': typeof CSlugRRecipeIdRoute
   '/g/$slug_/r/$recipeId': typeof GSlugRRecipeIdRoute
 }
 export interface FileRouteTypes {
@@ -127,9 +273,25 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/app/api'
+    | '/app/billing'
+    | '/app/build'
+    | '/app/cookbooks'
+    | '/app/export'
+    | '/app/gatherings'
+    | '/app/import'
+    | '/app/preferences'
+    | '/app/recipes'
+    | '/app/settings'
+    | '/c/$slug'
     | '/g/$slug'
+    | '/app/gatherings/$gatheringId'
+    | '/app/recipes/$recipeId'
     | '/g/$slug/video'
     | '/r/$ownerId/$id'
+    | '/app/gatherings/$gatheringId/share'
+    | '/app/recipes/$recipeId/edit'
+    | '/c/$slug/r/$recipeId'
     | '/g/$slug/r/$recipeId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -140,9 +302,25 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/app/api'
+    | '/app/billing'
+    | '/app/build'
+    | '/app/cookbooks'
+    | '/app/export'
+    | '/app/gatherings'
+    | '/app/import'
+    | '/app/preferences'
+    | '/app/recipes'
+    | '/app/settings'
+    | '/c/$slug'
     | '/g/$slug'
+    | '/app/gatherings/$gatheringId'
+    | '/app/recipes/$recipeId'
     | '/g/$slug/video'
     | '/r/$ownerId/$id'
+    | '/app/gatherings/$gatheringId/share'
+    | '/app/recipes/$recipeId/edit'
+    | '/c/$slug/r/$recipeId'
     | '/g/$slug/r/$recipeId'
   id:
     | '__root__'
@@ -153,21 +331,39 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/pricing'
     | '/register'
+    | '/app/api'
+    | '/app/billing'
+    | '/app/build'
+    | '/app/cookbooks'
+    | '/app/export'
+    | '/app/gatherings'
+    | '/app/import'
+    | '/app/preferences'
+    | '/app/recipes'
+    | '/app/settings'
+    | '/c/$slug'
     | '/g/$slug'
-    | '/g/$slug/video'
+    | '/app/gatherings/$gatheringId'
+    | '/app/recipes/$recipeId'
+    | '/g/$slug_/video'
     | '/r/$ownerId/$id'
+    | '/app/gatherings/$gatheringId/share'
+    | '/app/recipes/$recipeId/edit'
+    | '/c/$slug/r/$recipeId'
     | '/g/$slug_/r/$recipeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
-  AppRoute: typeof AppRoute
+  AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
-  GSlugRoute: typeof GSlugRouteWithChildren
+  CSlugRoute: typeof CSlugRouteWithChildren
+  GSlugRoute: typeof GSlugRoute
+  GSlugVideoRoute: typeof GSlugVideoRoute
   ROwnerIdIdRoute: typeof ROwnerIdIdRoute
   GSlugRRecipeIdRoute: typeof GSlugRRecipeIdRoute
 }
@@ -230,6 +426,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/recipes': {
+      id: '/app/recipes'
+      path: '/recipes'
+      fullPath: '/app/recipes'
+      preLoaderRoute: typeof AppRecipesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/preferences': {
+      id: '/app/preferences'
+      path: '/preferences'
+      fullPath: '/app/preferences'
+      preLoaderRoute: typeof AppPreferencesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/import': {
+      id: '/app/import'
+      path: '/import'
+      fullPath: '/app/import'
+      preLoaderRoute: typeof AppImportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/gatherings': {
+      id: '/app/gatherings'
+      path: '/gatherings'
+      fullPath: '/app/gatherings'
+      preLoaderRoute: typeof AppGatheringsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/export': {
+      id: '/app/export'
+      path: '/export'
+      fullPath: '/app/export'
+      preLoaderRoute: typeof AppExportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/cookbooks': {
+      id: '/app/cookbooks'
+      path: '/cookbooks'
+      fullPath: '/app/cookbooks'
+      preLoaderRoute: typeof AppCookbooksRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/build': {
+      id: '/app/build'
+      path: '/build'
+      fullPath: '/app/build'
+      preLoaderRoute: typeof AppBuildRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/billing': {
+      id: '/app/billing'
+      path: '/billing'
+      fullPath: '/app/billing'
+      preLoaderRoute: typeof AppBillingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/api': {
+      id: '/app/api'
+      path: '/api'
+      fullPath: '/app/api'
+      preLoaderRoute: typeof AppApiRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/r/$ownerId/$id': {
       id: '/r/$ownerId/$id'
       path: '/r/$ownerId/$id'
@@ -237,12 +510,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ROwnerIdIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/g/$slug/video': {
-      id: '/g/$slug/video'
-      path: '/video'
+    '/g/$slug_/video': {
+      id: '/g/$slug_/video'
+      path: '/g/$slug/video'
       fullPath: '/g/$slug/video'
       preLoaderRoute: typeof GSlugVideoRouteImport
-      parentRoute: typeof GSlugRoute
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/recipes/$recipeId': {
+      id: '/app/recipes/$recipeId'
+      path: '/$recipeId'
+      fullPath: '/app/recipes/$recipeId'
+      preLoaderRoute: typeof AppRecipesRecipeIdRouteImport
+      parentRoute: typeof AppRecipesRoute
+    }
+    '/app/gatherings/$gatheringId': {
+      id: '/app/gatherings/$gatheringId'
+      path: '/$gatheringId'
+      fullPath: '/app/gatherings/$gatheringId'
+      preLoaderRoute: typeof AppGatheringsGatheringIdRouteImport
+      parentRoute: typeof AppGatheringsRoute
     }
     '/g/$slug_/r/$recipeId': {
       id: '/g/$slug_/r/$recipeId'
@@ -251,28 +538,128 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GSlugRRecipeIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/c/$slug/r/$recipeId': {
+      id: '/c/$slug/r/$recipeId'
+      path: '/r/$recipeId'
+      fullPath: '/c/$slug/r/$recipeId'
+      preLoaderRoute: typeof CSlugRRecipeIdRouteImport
+      parentRoute: typeof CSlugRoute
+    }
+    '/app/recipes/$recipeId/edit': {
+      id: '/app/recipes/$recipeId/edit'
+      path: '/edit'
+      fullPath: '/app/recipes/$recipeId/edit'
+      preLoaderRoute: typeof AppRecipesRecipeIdEditRouteImport
+      parentRoute: typeof AppRecipesRecipeIdRoute
+    }
+    '/app/gatherings/$gatheringId/share': {
+      id: '/app/gatherings/$gatheringId/share'
+      path: '/share'
+      fullPath: '/app/gatherings/$gatheringId/share'
+      preLoaderRoute: typeof AppGatheringsGatheringIdShareRouteImport
+      parentRoute: typeof AppGatheringsGatheringIdRoute
+    }
   }
 }
 
-interface GSlugRouteChildren {
-  GSlugVideoRoute: typeof GSlugVideoRoute
+interface AppGatheringsGatheringIdRouteChildren {
+  AppGatheringsGatheringIdShareRoute: typeof AppGatheringsGatheringIdShareRoute
 }
 
-const GSlugRouteChildren: GSlugRouteChildren = {
-  GSlugVideoRoute: GSlugVideoRoute,
+const AppGatheringsGatheringIdRouteChildren: AppGatheringsGatheringIdRouteChildren =
+  {
+    AppGatheringsGatheringIdShareRoute: AppGatheringsGatheringIdShareRoute,
+  }
+
+const AppGatheringsGatheringIdRouteWithChildren =
+  AppGatheringsGatheringIdRoute._addFileChildren(
+    AppGatheringsGatheringIdRouteChildren,
+  )
+
+interface AppGatheringsRouteChildren {
+  AppGatheringsGatheringIdRoute: typeof AppGatheringsGatheringIdRouteWithChildren
 }
 
-const GSlugRouteWithChildren = GSlugRoute._addFileChildren(GSlugRouteChildren)
+const AppGatheringsRouteChildren: AppGatheringsRouteChildren = {
+  AppGatheringsGatheringIdRoute: AppGatheringsGatheringIdRouteWithChildren,
+}
+
+const AppGatheringsRouteWithChildren = AppGatheringsRoute._addFileChildren(
+  AppGatheringsRouteChildren,
+)
+
+interface AppRecipesRecipeIdRouteChildren {
+  AppRecipesRecipeIdEditRoute: typeof AppRecipesRecipeIdEditRoute
+}
+
+const AppRecipesRecipeIdRouteChildren: AppRecipesRecipeIdRouteChildren = {
+  AppRecipesRecipeIdEditRoute: AppRecipesRecipeIdEditRoute,
+}
+
+const AppRecipesRecipeIdRouteWithChildren =
+  AppRecipesRecipeIdRoute._addFileChildren(AppRecipesRecipeIdRouteChildren)
+
+interface AppRecipesRouteChildren {
+  AppRecipesRecipeIdRoute: typeof AppRecipesRecipeIdRouteWithChildren
+}
+
+const AppRecipesRouteChildren: AppRecipesRouteChildren = {
+  AppRecipesRecipeIdRoute: AppRecipesRecipeIdRouteWithChildren,
+}
+
+const AppRecipesRouteWithChildren = AppRecipesRoute._addFileChildren(
+  AppRecipesRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppApiRoute: typeof AppApiRoute
+  AppBillingRoute: typeof AppBillingRoute
+  AppBuildRoute: typeof AppBuildRoute
+  AppCookbooksRoute: typeof AppCookbooksRoute
+  AppExportRoute: typeof AppExportRoute
+  AppGatheringsRoute: typeof AppGatheringsRouteWithChildren
+  AppImportRoute: typeof AppImportRoute
+  AppPreferencesRoute: typeof AppPreferencesRoute
+  AppRecipesRoute: typeof AppRecipesRouteWithChildren
+  AppSettingsRoute: typeof AppSettingsRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppApiRoute: AppApiRoute,
+  AppBillingRoute: AppBillingRoute,
+  AppBuildRoute: AppBuildRoute,
+  AppCookbooksRoute: AppCookbooksRoute,
+  AppExportRoute: AppExportRoute,
+  AppGatheringsRoute: AppGatheringsRouteWithChildren,
+  AppImportRoute: AppImportRoute,
+  AppPreferencesRoute: AppPreferencesRoute,
+  AppRecipesRoute: AppRecipesRouteWithChildren,
+  AppSettingsRoute: AppSettingsRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface CSlugRouteChildren {
+  CSlugRRecipeIdRoute: typeof CSlugRRecipeIdRoute
+}
+
+const CSlugRouteChildren: CSlugRouteChildren = {
+  CSlugRRecipeIdRoute: CSlugRRecipeIdRoute,
+}
+
+const CSlugRouteWithChildren = CSlugRoute._addFileChildren(CSlugRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
-  AppRoute: AppRoute,
+  AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
-  GSlugRoute: GSlugRouteWithChildren,
+  CSlugRoute: CSlugRouteWithChildren,
+  GSlugRoute: GSlugRoute,
+  GSlugVideoRoute: GSlugVideoRoute,
   ROwnerIdIdRoute: ROwnerIdIdRoute,
   GSlugRRecipeIdRoute: GSlugRRecipeIdRoute,
 }

@@ -1,10 +1,14 @@
 import type { Recipe } from "@open-cook/core";
 import { describe, expect, it } from "vitest";
 import {
+  gatheringDraftAssistFieldValue,
+  gatheringDraftAssistPrompt,
   gatheringRecipeAutoPickCount,
   gatheringRecipePickerAutoPickIds,
   gatheringRecipePickerMatches,
   gatheringRecipePickerPageSize,
+  gatheringRecipePickerSelectedFirst,
+  gatheringTitleDietaryHints,
   nextGatheringRecipePickerCount,
 } from "../src/components/recipeGenerator";
 
@@ -67,5 +71,51 @@ describe("gathering recipe picker", () => {
       "recipe-1",
       "recipe-2",
     ]);
+  });
+
+  it("moves selected matching recipes before paging the picker", () => {
+    const recipes = Array.from({ length: gatheringRecipePickerPageSize + 3 }, (_, i) =>
+      recipe(i + 1),
+    );
+
+    const matches = gatheringRecipePickerMatches(recipes, "");
+    const selectedRecipeId = `recipe-${gatheringRecipePickerPageSize + 2}`;
+    const orderedMatches = gatheringRecipePickerSelectedFirst(matches, [
+      selectedRecipeId,
+      "recipe-3",
+    ]);
+
+    expect(orderedMatches.slice(0, 4).map((item) => item.id)).toEqual([
+      selectedRecipeId,
+      "recipe-3",
+      "recipe-1",
+      "recipe-2",
+    ]);
+    expect(
+      orderedMatches.slice(0, gatheringRecipePickerPageSize).map((item) => item.id),
+    ).toContain(selectedRecipeId);
+  });
+
+  it("fills only empty draft fields with generated values", () => {
+    expect(gatheringDraftAssistFieldValue("", "Generated welcome")).toBe(
+      "Generated welcome",
+    );
+    expect(gatheringDraftAssistFieldValue("Manual welcome", "Generated welcome")).toBe(
+      "Manual welcome",
+    );
+  });
+
+  it("uses the title as creative direction only when prompt is empty", () => {
+    expect(gatheringDraftAssistPrompt("", "Sunday lunch")).toBe("Sunday lunch");
+    expect(gatheringDraftAssistPrompt("Keep it casual", "Sunday lunch")).toBe(
+      "Keep it casual",
+    );
+  });
+
+  it("infers dietary hints only from explicit title language", () => {
+    expect(gatheringTitleDietaryHints("Vegan gluten-free birthday lunch")).toBe(
+      "vegan, gluten-free",
+    );
+    expect(gatheringTitleDietaryHints("Sunday birthday lunch")).toBe("");
   });
 });

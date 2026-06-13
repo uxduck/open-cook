@@ -16,7 +16,7 @@ import {
  */
 export const AI_PAYWALL_DISABLED = true;
 
-/** Free-plan recipe cap. Pro is unlimited. */
+/** Free-plan recipe cap. Chef is unlimited. */
 export const RECIPE_LIMIT_FREE = 1000;
 
 /** Credit cost per metered action (must match the Paid product pricing config). */
@@ -53,7 +53,7 @@ export function isFreePlan(user: { plan?: string | null } | null): boolean {
  * Lazily top up a free-plan user's monthly credit allowance in Paid. Called
  * from the restyle gate and `/billing/me`, so the grant lands the first time
  * a user touches a metered feature each period — no cron needed. No-op for
- * Pro users, unconfigured billing, or when the current window's grant exists.
+ * Chef users, unconfigured billing, or when the current window's grant exists.
  */
 export async function ensureFreeMonthlyCredits(
   billing: PaidBilling | null,
@@ -124,9 +124,9 @@ export async function ensureFreeMonthlyCredits(
 
 /**
  * Gate a recipe restyle. Paid is the source of truth for the monthly allowance
- * (free: 3/mo, Pro: 20/mo, modelled as monthly credit grants) plus any purchased
- * credit packs. When billing is not configured (`billing` is null), the action is
- * allowed so local/dev flows keep working.
+ * (free: 3/mo, Chef: 20/mo, modelled as monthly credit grants) plus any
+ * internal/add-on grants. When billing is not configured (`billing` is null),
+ * the action is allowed so local/dev flows keep working.
  */
 export async function assertRestyleAllowed(
   billing: PaidBilling | null,

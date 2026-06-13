@@ -34,7 +34,7 @@ describe("createRecipeAiService", () => {
   it("uses Workers AI as the text remix fallback", async () => {
     const ai: RecipeAiBinding = {
       async run(model, input) {
-        expect(model).toBe("@cf/test-model");
+        expect(model).toBe("@cf/zai-org/glm-4.7-flash");
         expect(input.response_format).toMatchObject({
           type: "json_schema",
         });
@@ -63,7 +63,6 @@ describe("createRecipeAiService", () => {
       assets: disabledAssets,
       env: {
         AI: ai,
-        WORKERS_AI_RECIPE_REMIX_MODEL: "@cf/test-model",
       },
     });
 
@@ -76,16 +75,16 @@ describe("createRecipeAiService", () => {
 
     expect(result.provider).toEqual({
       provider: "workers-ai",
-      model: "@cf/test-model",
+      model: "@cf/zai-org/glm-4.7-flash",
     });
     expect(result.draft.title).toBe("Moon Tomato Pasta");
     expect(result.safetyNotes).toContain("An adult should handle boiling water.");
   });
 
-  it("parses Kimi-style chat completion output for recipe remixes", async () => {
+  it("parses chat completion output for recipe remixes", async () => {
     const ai: RecipeAiBinding = {
       async run(model, input) {
-        expect(model).toBe("@cf/moonshotai/kimi-k2.6");
+        expect(model).toBe("@cf/zai-org/glm-4.7-flash");
         expect(input.response_format).toMatchObject({
           json_schema: {
             name: "RecipeRemix",
@@ -135,7 +134,7 @@ describe("createRecipeAiService", () => {
 
     expect(result.provider).toEqual({
       provider: "workers-ai",
-      model: "@cf/moonshotai/kimi-k2.6",
+      model: "@cf/zai-org/glm-4.7-flash",
     });
     expect(result.draft.title).toBe("Rocket Tomato Pasta");
   });

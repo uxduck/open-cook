@@ -399,7 +399,7 @@ async function apiRequest(path, options = {}) {
       response.status === 401 &&
       !process.env.OPEN_COOK_AUTH_TOKEN &&
       !process.env.OPEN_COOK_COOKIE
-        ? "Unauthorized. Set OPEN_COOK_AUTH_TOKEN to a Better Auth bearer session token. For local debugging you can set OPEN_COOK_COOKIE to a valid OpenCook browser session cookie or sign in to the local OpenCook app so the MCP bridge can reuse the local dev session."
+        ? "Unauthorized. Set OPEN_COOK_AUTH_TOKEN to a scoped Codex token created from OpenCook's API page. For local debugging you can set OPEN_COOK_COOKIE to a valid OpenCook browser session cookie or sign in to the local OpenCook app so the MCP bridge can reuse the local dev session."
         : typeof data === "object" && data && "error" in data
           ? data.error
           : response.statusText;

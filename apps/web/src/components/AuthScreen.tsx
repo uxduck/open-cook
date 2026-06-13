@@ -3,7 +3,7 @@ import { LogIn, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthPage } from "../AuthPage";
 import { useSession } from "../context/SessionProvider";
-import { Button } from "../ui";
+import { Button, pageContainerClassName } from "../ui";
 
 export function AuthScreen({ intent }: { intent: "login" | "signup" }) {
   const navigate = useNavigate();
@@ -39,7 +39,9 @@ export function AuthScreen({ intent }: { intent: "login" | "signup" }) {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b-2 border-[var(--border)] bg-[color-mix(in_oklch,var(--background)_86%,white)] shadow-[0_2px_0_var(--border)]">
-        <div className="mx-auto flex min-h-[70px] w-full max-w-[1180px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div
+          className={`${pageContainerClassName} flex min-h-[70px] items-center justify-between gap-3 px-4 py-3 sm:px-6`}
+        >
           <button
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border-0 bg-transparent p-0 text-xl font-black text-[var(--foreground)]"
             onClick={() => navigate({ to: "/" })}

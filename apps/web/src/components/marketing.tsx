@@ -26,6 +26,7 @@ import {
   marketingBrandClassName,
   marketingNavActionsClassName,
   marketingNavClassName,
+  pageContainerClassName,
 } from "../ui";
 import {
   type AuthIntent,
@@ -43,10 +44,14 @@ import { RecipeThumb } from "./recipeViews";
 
 export function MarketingPage({
   onAuthIntent,
+  onImportRecipes,
+  onOpenHome,
   onOpenApp,
   session,
 }: {
   onAuthIntent: (intent: Exclude<AuthIntent, null>) => void;
+  onImportRecipes: () => void;
+  onOpenHome: () => void;
   onOpenApp: () => void;
   session: CurrentAuthSession | null;
 }) {
@@ -86,24 +91,24 @@ export function MarketingPage({
 
   return (
     <div
-      className="relative mx-auto max-w-[1180px] px-6 pt-5 pb-16 [--food-scroll:0] max-[860px]:px-4 max-[860px]:pt-3.5 max-[860px]:pb-[42px]"
+      className={`${pageContainerClassName} relative px-6 pt-5 pb-16 [--food-scroll:0] max-[860px]:px-4 max-[860px]:pt-3.5 max-[860px]:pb-[42px]`}
       ref={pageRef}
     >
       <header className={marketingNavClassName}>
-        <button className={marketingBrandClassName} onClick={onOpenApp} type="button">
+        <button className={marketingBrandClassName} onClick={onOpenHome} type="button">
           <img alt="" className="size-7" src="/logo.png" />
           <span>OpenCook</span>
         </button>
         <div className={marketingNavActionsClassName}>
           <Link
-            className="px-2 text-sm font-bold text-(--muted-foreground) hover:text-(--foreground)"
+            className="px-2 text-sm font-bold text-(--muted-foreground) hover:text-(--foreground) max-[640px]:hidden"
             to="/pricing"
           >
             Pricing
           </Link>
           <a
             aria-label="Open OpenCook on GitHub"
-            className={marketingSocialLinkClass}
+            className={`${marketingSocialLinkClass} max-[640px]:hidden`}
             href={githubUrl}
             rel="noreferrer"
             target="_blank"
@@ -113,7 +118,7 @@ export function MarketingPage({
           </a>
           <a
             aria-label="Open uxduck on X"
-            className={marketingSocialLinkClass}
+            className={`${marketingSocialLinkClass} max-[640px]:hidden`}
             href={xProfileUrl}
             rel="noreferrer"
             target="_blank"
@@ -134,7 +139,11 @@ export function MarketingPage({
             </Button>
           ) : (
             <>
-              <Button onClick={() => onAuthIntent("login")} size="sm">
+              <Button
+                className="max-[420px]:hidden!"
+                onClick={() => onAuthIntent("login")}
+                size="sm"
+              >
                 <LogIn size={15} />
                 Log in
               </Button>
@@ -168,11 +177,7 @@ export function MarketingPage({
             ))}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2.5">
-            <Button
-              onClick={() => (session ? onOpenApp() : onAuthIntent("signup"))}
-              size="lg"
-              variant="primary"
-            >
+            <Button onClick={onImportRecipes} size="lg" variant="primary">
               Import your recipes
               <ExternalLink size={16} />
             </Button>

@@ -6,6 +6,7 @@ export const gatheringStatusSchema = v.picklist(["draft", "published"]);
 export const gatheringArtifactKindSchema = v.picklist([
   "menu-images",
   "page-artwork",
+  "rsvp-artwork",
   "voiceover",
   "video-teaser",
 ]);
@@ -63,11 +64,11 @@ export const gatheringGuestResponseSchema = v.object({
 export const gatheringSchema = v.object({
   id: v.pipe(v.string(), v.minLength(1)),
   slug: v.pipe(v.string(), v.minLength(1)),
-  title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(120)),
+  title: v.pipe(v.string(), v.trim(), v.maxLength(120)),
   prompt: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(2_000))),
-  welcome: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(2_000)),
+  welcome: v.pipe(v.string(), v.trim(), v.maxLength(2_000)),
   dietary: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
-  guestQuestion: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(300)),
+  guestQuestion: v.pipe(v.string(), v.trim(), v.maxLength(300)),
   recipeIds: v.array(v.pipe(v.string(), v.minLength(1))),
   invitees: v.array(gatheringInviteeSchema),
   status: gatheringStatusSchema,
@@ -84,6 +85,11 @@ export const publicGatheringSchema = v.object({
   responses: v.array(gatheringGuestResponseSchema),
 });
 
+export const ownedGatheringSchema = v.object({
+  ...gatheringSchema.entries,
+  artifacts: v.array(gatheringArtifactSchema),
+});
+
 export type GatheringStatus = v.InferOutput<typeof gatheringStatusSchema>;
 export type GatheringArtifactKind = v.InferOutput<typeof gatheringArtifactKindSchema>;
 export type GatheringArtifactProvider = v.InferOutput<
@@ -97,3 +103,4 @@ export type GatheringInvitee = v.InferOutput<typeof gatheringInviteeSchema>;
 export type GatheringGuestResponse = v.InferOutput<typeof gatheringGuestResponseSchema>;
 export type Gathering = v.InferOutput<typeof gatheringSchema>;
 export type PublicGathering = v.InferOutput<typeof publicGatheringSchema>;
+export type OwnedGathering = v.InferOutput<typeof ownedGatheringSchema>;

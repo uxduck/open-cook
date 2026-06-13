@@ -3,6 +3,11 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 import * as v from "valibot";
 import type { Env } from "../../AppContext";
 import { requireAuthMiddleware } from "../auth/requireAuth";
+import {
+  createCodexConnection,
+  listCodexConnections,
+  revokeCodexConnection,
+} from "./codexTokens";
 import { searchRecipeSummaries } from "./recipeSearchTool";
 
 const agentEndpointSchema = v.object({
@@ -76,6 +81,30 @@ const shoppingListOutputSchema = v.object({
   ),
 });
 
+const codexConnectionSchema = v.object({
+  createdAt: v.string(),
+  id: v.string(),
+  lastUsedAt: v.nullable(v.string()),
+  name: v.string(),
+  tokenPrefix: v.string(),
+});
+
+const createdCodexConnectionSchema = v.object({
+  apiBase: v.string(),
+  createdAt: v.string(),
+  env: v.string(),
+  id: v.string(),
+  lastUsedAt: v.nullable(v.string()),
+  name: v.string(),
+  pluginName: v.literal("opencook"),
+  token: v.string(),
+  tokenPrefix: v.string(),
+});
+
+const createCodexConnectionSchema = v.object({
+  name: v.optional(v.string()),
+});
+
 export const agentApp = new Hono<Env>()
   .get(
     "/manifest",
@@ -146,6 +175,89 @@ export const agentApp = new Hono<Env>()
           },
         ],
       }),
+  )
+  .get(
+    "/codex-connections",
+    requireAuthMiddleware,
+    describeRoute({
+      description: "List active Codex connection tokens for the current user.",
+      responses: {
+        200: {
+          content: {
+            "application/json": { schema: resolver(v.array(codexConnectionSchema)) },
+          },
+          description: "Codex connections returned.",
+        },
+        401: { description: "No active session." },
+      },
+    }),
+    async (c) => {
+      if (!c.var.db) {
+        return c.json({ error: "Codex connection storage is unavailable." }, 503);
+      }
+
+      return c.json(await listCodexConnections(c.var.db, c.var.user!.id));
+    },
+  )
+  .post(
+    "/codex-connections",
+    requireAuthMiddleware,
+    describeRoute({
+      description:
+        "Create a Codex connection token. The token is returned once and only its hash is stored.",
+      responses: {
+        201: {
+          content: {
+            "application/json": { schema: resolver(createdCodexConnectionSchema) },
+          },
+          description: "Codex connection token created.",
+        },
+        400: { description: "Invalid connection payload." },
+        401: { description: "No active session." },
+      },
+    }),
+    validator("json", createCodexConnectionSchema),
+    async (c) => {
+      if (!c.var.db) {
+        return c.json({ error: "Codex connection storage is unavailable." }, 503);
+      }
+
+      const input = c.req.valid("json");
+      const apiBase = new URL(c.req.url).origin;
+      const connection = await createCodexConnection({
+        apiBase,
+        db: c.var.db,
+        name: input.name,
+        userId: c.var.user!.id,
+      });
+
+      return c.json(connection, 201);
+    },
+  )
+  .delete(
+    "/codex-connections/:id",
+    requireAuthMiddleware,
+    describeRoute({
+      description: "Revoke one Codex connection token for the current user.",
+      responses: {
+        204: { description: "Codex connection revoked." },
+        401: { description: "No active session." },
+      },
+    }),
+    validator("param", v.object({ id: v.pipe(v.string(), v.minLength(1)) })),
+    async (c) => {
+      if (!c.var.db) {
+        return c.json({ error: "Codex connection storage is unavailable." }, 503);
+      }
+
+      await revokeCodexConnection({
+        db: c.var.db,
+        id: c.req.valid("param").id,
+        userId: c.var.user!.id,
+      });
+
+      return c.body(null, 204);
+    },
   )
   .post(
     "/tools/search-recipes",

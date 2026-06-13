@@ -9,13 +9,11 @@ import {
   type WorkersAiBinding as RecipeAiBinding,
   workersAiResponseObject,
 } from "../../ai/workersAiResponses";
+import { workersAiModels } from "../../ai/workersAiModels";
 
 type RecipeStructuringOptions = {
   ai?: RecipeAiBinding;
-  model?: string;
 };
-
-const defaultRecipeStructureModel = "@cf/moonshotai/kimi-k2.6";
 
 export async function structureRecipeWithAi(
   recipe: Recipe,
@@ -28,7 +26,7 @@ export async function structureRecipeWithAi(
   }
 
   try {
-    const model = options.model || defaultRecipeStructureModel;
+    const model = workersAiModels.recipeStructure;
     const result = await options.ai.run(model, {
       max_completion_tokens: 3200,
       messages: [

@@ -1,10 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Check, Minus, Plus, Sparkles, Wand2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  Check,
+  CreditCard,
+  LogIn,
+  Sparkles,
+  UserPlus,
+} from "lucide-react";
+import { useState } from "react";
 import { api, type CheckoutTarget, isApiError } from "../api";
 import { SiteHeader } from "../components/SiteHeader";
 import { useSession } from "../context/SessionProvider";
-import { Button } from "../ui";
+import { pageContainerClassName, PopButton } from "../ui";
 
 export const Route = createFileRoute("/pricing")({
   ssr: true,
@@ -17,10 +24,13 @@ const PRO_ANNUAL = 29;
 const FREE_RESTYLES = 3;
 const PRO_RESTYLES = 20;
 const PRO_STORIES = 3;
-// 1 credit ≈ £0.02 (restyle = 25cr = £0.50, story = 50cr = £1.00).
-const CREDIT_GBP = 0.02;
-const RESTYLE_CREDITS = 25;
-const STORY_CREDITS = 50;
+const CHEF_CHECKOUT_TARGET: CheckoutTarget = "pro";
+const ANNUAL_SAVINGS_PERCENT = Math.round(
+  (1 - PRO_ANNUAL / (PRO_MONTHLY * 12)) * 100,
+);
+const PAYMENTS_DISABLED = true;
+const PAYMENTS_DISABLED_MESSAGE =
+  "Payments are temporarily paused while we finish checkout.";
 
 function gbp(amount: number): string {
   return amount % 1 === 0 ? `£${amount}` : `£${amount.toFixed(2)}`;
@@ -35,6 +45,10 @@ function PricingPage() {
 
   async function checkout(target: CheckoutTarget) {
     setError(null);
+    if (PAYMENTS_DISABLED) {
+      setError(PAYMENTS_DISABLED_MESSAGE);
+      return;
+    }
     if (!session) {
       void navigate({ to: "/register" });
       return;
@@ -56,170 +70,157 @@ function PricingPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 py-10 md:py-16">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_8%_8%,rgba(255,190,91,0.2),transparent_19rem),radial-gradient(circle_at_92%_10%,rgba(47,104,75,0.16),transparent_22rem),linear-gradient(135deg,#fff7e3_0%,#f6efe2_52%,#eaf3df_100%)] text-(--color-ink)">
       <SiteHeader
         actions={
           session ? (
             <>
-              <Button
+              <PopButton
                 size="sm"
-                onClick={() =>
-                  navigate({ search: { page: "billing" }, to: "/app" })
-                }
+                tone="secondary"
+                onClick={() => navigate({ to: "/app/billing" })}
               >
+                <CreditCard className="max-[520px]:hidden" size={15} />
                 Account
-              </Button>
-              <Button
+              </PopButton>
+              <PopButton
                 size="sm"
-                variant="primary"
+                tone="primary"
                 onClick={() => navigate({ to: "/app" })}
               >
                 Open app
-              </Button>
+                <ArrowRight className="max-[520px]:hidden" size={15} />
+              </PopButton>
             </>
           ) : (
             <>
-              <Button size="sm" onClick={() => navigate({ to: "/login" })}>
-                Log in
-              </Button>
-              <Button
+              <PopButton
                 size="sm"
-                variant="primary"
+                tone="secondary"
+                onClick={() => navigate({ to: "/login" })}
+              >
+                <LogIn className="max-[520px]:hidden" size={15} />
+                Log in
+              </PopButton>
+              <PopButton
+                size="sm"
+                tone="primary"
                 onClick={() => navigate({ to: "/register" })}
               >
+                <UserPlus className="max-[520px]:hidden" size={15} />
                 Register
-              </Button>
+              </PopButton>
             </>
           )
         }
       />
 
-      <section className="mb-10 text-center">
-        <p className="mb-2 text-sm font-bold tracking-wide text-(--muted-foreground)">
-          Pricing
-        </p>
-        <h1 className="text-3xl font-extrabold text-(--foreground) md:text-4xl">
-          Keep your recipes free. Pay only for the magic.
-        </h1>
-        <p className="mx-auto mt-3 max-w-2xl text-(--muted-foreground)">
-          Store up to 1,000 recipes at no cost. Upgrade when you want more AI versions
-          and stories. Or top up with credits as you go.
-        </p>
-      </section>
+      <main className={`${pageContainerClassName} px-5 pt-10 pb-14 max-[640px]:px-4 md:pt-12 md:pb-16`}>
+        <section className="mb-8 text-center">
+          <p className="mb-2 text-sm font-black tracking-normal text-(--color-fog)">
+            Pricing
+          </p>
+          <h1 className="mx-auto max-w-4xl text-balance text-[clamp(34px,5vw,48px)] font-extrabold leading-[1.02] tracking-normal text-(--color-ink)">
+            Keep every recipe. Upgrade when OpenCook saves dinner.
+          </h1>
+          <p className="mx-auto mt-3 max-w-2xl text-[16px] leading-6 text-(--color-fog)">
+            Start with a generous free recipe library. Chef adds unlimited recipes
+            and a simple monthly AI allowance without credit packs or surprise top-ups.
+          </p>
+        </section>
 
-      {/* Monthly / annual toggle */}
-      <div className="mb-8 flex items-center justify-center gap-3">
-        <span className={annual ? "text-(--muted-foreground)" : "font-bold"}>
-          Monthly
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={annual}
-          onClick={() => setAnnual((value) => !value)}
-          className="relative h-7 w-12 rounded-full border-2 border-(--border) bg-(--card) transition"
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-(--primary) transition-all ${
-              annual ? "left-[22px]" : "left-0.5"
-            }`}
-          />
-        </button>
-        <span className={annual ? "font-bold" : "text-(--muted-foreground)"}>
-          Annual <span className="text-(--pop-green)">(~40% off)</span>
-        </span>
-      </div>
-
-      {error ? (
-        <p className="mb-6 rounded-lg border-2 border-(--destructive) bg-(--card) px-4 py-3 text-center text-sm font-bold text-(--destructive)">
-          {error}
-        </p>
-      ) : null}
-
-      <section className="grid gap-6 md:grid-cols-3">
-        {/* Free */}
-        <PlanCard title="Free" price="£0" cadence="forever">
-          <FeatureList
-            features={[
-              "Up to 1,000 recipes",
-              "Import from anywhere",
-              `${FREE_RESTYLES} AI versions / month`,
-              "Export anytime, no lock-in",
-            ]}
-          />
-          <Button
-            fullWidth
-            variant="secondary"
-            onClick={() => navigate({ to: session ? "/app" : "/register" })}
+        <div className="mb-7 flex items-center justify-center gap-3">
+          <span className={annual ? "text-(--color-fog)" : "font-black"}>Monthly</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={annual}
+            onClick={() => setAnnual((value) => !value)}
+            className="relative h-7 w-12 rounded-full border-2 border-(--color-pop-ink) bg-(--color-pop-card) shadow-[2px_2px_0_0_var(--color-pop-ink)] transition hover:-translate-x-px hover:-translate-y-px hover:bg-[color-mix(in_oklch,var(--color-pop-accent)_18%,white)] hover:shadow-[3px_3px_0_0_var(--color-pop-ink)]"
           >
-            {session ? "Open app" : "Get started"}
-          </Button>
-        </PlanCard>
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full border border-(--color-pop-ink) bg-(--color-tomato) transition-all ${
+                annual ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+          <span className={annual ? "font-black" : "text-(--color-fog)"}>
+            Annual{" "}
+            <span className="text-(--color-sage)">
+              ({ANNUAL_SAVINGS_PERCENT}% off)
+            </span>
+          </span>
+        </div>
 
-        {/* Chef */}
-        <PlanCard
-          title="Chef"
-          price={annual ? gbp(PRO_ANNUAL) : gbp(PRO_MONTHLY)}
-          cadence={annual ? "per year" : "per month"}
-          highlight
-        >
-          <FeatureList
-            features={[
-              "Unlimited recipes",
-              `${PRO_RESTYLES} AI versions / month`,
-              `${PRO_STORIES} stories / month`,
-              "Credit overage when you need more",
-            ]}
-          />
-          <Button
-            fullWidth
-            variant="primary"
-            disabled={pending === "pro"}
-            onClick={() => checkout("pro")}
+        {error ? (
+          <p className="mb-6 rounded-lg border-2 border-(--color-tomato) bg-(--color-panel) px-4 py-3 text-center text-sm font-bold text-(--color-tomato-dark)">
+            {error}
+          </p>
+        ) : PAYMENTS_DISABLED ? (
+          <p className="mb-6 rounded-lg border-2 border-(--color-pop-ink) bg-(--color-pop-card) px-4 py-3 text-center text-sm font-bold text-(--color-pop-ink)">
+            {PAYMENTS_DISABLED_MESSAGE}
+          </p>
+        ) : null}
+
+        <section className="mx-auto grid max-w-[860px] gap-5 md:grid-cols-2">
+          <PlanCard title="Free" price="£0" cadence="forever">
+            <FeatureList
+              features={[
+                "Up to 1,000 recipes",
+                "Import from anywhere",
+                `${FREE_RESTYLES} AI recipe edits / month`,
+                "Export anytime, no lock-in",
+              ]}
+            />
+            <PopButton
+              fullWidth
+              tone="secondary"
+              onClick={() => navigate({ to: session ? "/app" : "/register" })}
+            >
+              {session ? "Open app" : "Get started"}
+              <ArrowRight size={15} />
+            </PopButton>
+          </PlanCard>
+
+          <PlanCard
+            title="Chef"
+            price={annual ? gbp(PRO_ANNUAL) : gbp(PRO_MONTHLY)}
+            cadence={annual ? "per year" : "per month"}
+            highlight
           >
-            <Sparkles size={16} />
-            {pending === "pro" ? "Starting…" : "Go Chef"}
-          </Button>
-        </PlanCard>
-
-        {/* Credits */}
-        <PlanCard title="Credit packs" price="from £5" cadence="pay as you go">
-          <FeatureList
-            features={[
-              "Top up on any plan",
-              `Version = ${RESTYLE_CREDITS} credits (~${gbp(0.5)})`,
-              `Story = ${STORY_CREDITS} credits (~${gbp(1)})`,
-              "Credits never expire",
-            ]}
-          />
-          <div className="flex gap-2">
-            <Button
+            <FeatureList
+              features={[
+                "Everything in Free",
+                "Unlimited recipes",
+                `${PRO_RESTYLES} AI recipe edits / month`,
+                `${PRO_STORIES} story generations / month as they roll out`,
+                "One simple plan, no credit packs",
+              ]}
+            />
+            <PopButton
               fullWidth
-              variant="secondary"
-              disabled={pending === "credits_5"}
-              onClick={() => checkout("credits_5")}
+              tone="primary"
+              disabled={PAYMENTS_DISABLED || pending === CHEF_CHECKOUT_TARGET}
+              onClick={() => checkout(CHEF_CHECKOUT_TARGET)}
             >
-              {pending === "credits_5" ? "…" : "£5 pack"}
-            </Button>
-            <Button
-              fullWidth
-              variant="secondary"
-              disabled={pending === "credits_10"}
-              onClick={() => checkout("credits_10")}
-            >
-              {pending === "credits_10" ? "…" : "£10 pack"}
-            </Button>
-          </div>
-        </PlanCard>
-      </section>
+              <Sparkles size={16} />
+              {PAYMENTS_DISABLED
+                ? "Payments paused"
+                : pending === CHEF_CHECKOUT_TARGET
+                  ? "Starting…"
+                  : "Upgrade to Chef"}
+            </PopButton>
+          </PlanCard>
+        </section>
 
-      <PricingCalculator annual={annual} />
+        <SimplePricingNotes />
 
-      <p className="mt-10 text-center text-xs text-(--muted-foreground)">
-        Story &amp; video generation is rolling out soon. Prices in GBP, billed
-        securely. Cancel anytime from your account.
-      </p>
-    </main>
+        <p className="mt-8 text-center text-xs text-(--color-fog)">
+          Prices in GBP. Checkout will be enabled once payments are ready. Cancel
+          anytime from your account.
+        </p>
+      </main>
+    </div>
   );
 }
 
@@ -238,25 +239,25 @@ function PlanCard({
 }) {
   return (
     <div
-      className={`flex flex-col gap-5 rounded-2xl border-2 bg-(--card) p-6 shadow-pop ${
-        highlight ? "border-(--primary)" : "border-(--border)"
+      className={`flex flex-col gap-4 rounded-lg border-2 bg-(--color-panel) p-5 shadow-pop-sm ${
+        highlight ? "border-(--color-tomato)" : "border-(--color-ink)"
       }`}
     >
       <div>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-(--foreground)">{title}</h2>
+          <h2 className="text-lg font-extrabold text-(--color-ink)">{title}</h2>
           {highlight ? (
-            <span className="rounded-full bg-(--primary) px-2.5 py-1 text-xs font-extrabold text-(--primary-foreground)">
+            <span className="rounded-full bg-(--color-tomato) px-2.5 py-1 text-xs font-extrabold text-white">
               Popular
             </span>
           ) : null}
         </div>
         <div className="mt-3 flex items-baseline gap-1.5">
-          <span className="text-3xl font-extrabold text-(--foreground)">{price}</span>
-          <span className="text-sm text-(--muted-foreground)">{cadence}</span>
+          <span className="text-3xl font-extrabold text-(--color-ink)">{price}</span>
+          <span className="text-sm text-(--color-fog)">{cadence}</span>
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-5">{children}</div>
+      <div className="flex flex-1 flex-col gap-4">{children}</div>
     </div>
   );
 }
@@ -265,11 +266,8 @@ function FeatureList({ features }: { features: string[] }) {
   return (
     <ul className="flex flex-1 flex-col gap-2.5">
       {features.map((feature) => (
-        <li
-          key={feature}
-          className="flex items-start gap-2 text-sm text-(--foreground)"
-        >
-          <Check size={18} className="mt-px shrink-0 text-(--pop-green)" />
+        <li key={feature} className="flex items-start gap-2 text-sm text-(--color-ink)">
+          <Check size={18} className="mt-px shrink-0 text-(--color-sage)" />
           <span>{feature}</span>
         </li>
       ))}
@@ -277,111 +275,36 @@ function FeatureList({ features }: { features: string[] }) {
   );
 }
 
-function PricingCalculator({ annual }: { annual: boolean }) {
-  const [restyles, setRestyles] = useState(8);
-  const [stories, setStories] = useState(1);
-
-  const result = useMemo(() => {
-    const monthlyPro = annual ? PRO_ANNUAL / 12 : PRO_MONTHLY;
-
-    // Cheapest fit.
-    if (restyles <= FREE_RESTYLES && stories === 0) {
-      return { plan: "Free", monthly: 0, note: "Your usage fits the free plan." };
-    }
-    if (restyles <= PRO_RESTYLES && stories <= PRO_STORIES) {
-      return {
-        plan: "Chef",
-        monthly: monthlyPro,
-        note: "Covered by your monthly Chef allowance.",
-      };
-    }
-    const extraRestyles = Math.max(0, restyles - PRO_RESTYLES) * RESTYLE_CREDITS;
-    const extraStories = Math.max(0, stories - PRO_STORIES) * STORY_CREDITS;
-    const overage = (extraRestyles + extraStories) * CREDIT_GBP;
-    return {
-      plan: "Chef + credits",
-      monthly: monthlyPro + overage,
-      note: `Chef plus ~${gbp(Number(overage.toFixed(2)))} in credit top-ups.`,
-    };
-  }, [annual, restyles, stories]);
-
+function SimplePricingNotes() {
   return (
-    <section className="mt-12 rounded-2xl border-2 border-(--border) bg-(--card) p-6 shadow-pop md:p-8">
-      <div className="mb-6 flex items-center gap-2">
-        <Wand2 size={20} className="text-(--primary)" />
-        <h2 className="text-xl font-extrabold text-(--foreground)">
-          What would it cost me?
-        </h2>
-      </div>
-      <div className="grid gap-6 md:grid-cols-[1fr_auto] md:items-center">
-        <div className="grid gap-6 sm:grid-cols-2">
-          <Stepper
-            label="AI versions / month"
-            value={restyles}
-            onChange={setRestyles}
-            max={100}
-          />
-          <Stepper
-            label="Stories / month"
-            value={stories}
-            onChange={setStories}
-            max={50}
-          />
-        </div>
-        <div className="rounded-xl border-2 border-(--primary) bg-(--background) p-5 text-center md:min-w-[220px]">
-          <p className="text-sm font-bold text-(--muted-foreground)">{result.plan}</p>
-          <p className="my-1 text-3xl font-extrabold text-(--foreground)">
-            {result.monthly === 0 ? "£0" : `${gbp(Number(result.monthly.toFixed(2)))}`}
-            <span className="text-sm font-normal text-(--muted-foreground)">/mo</span>
-          </p>
-          <p className="text-xs text-(--muted-foreground)">{result.note}</p>
-        </div>
-      </div>
+    <section className="mx-auto mt-8 grid max-w-[860px] gap-3 rounded-lg border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-pop-sm sm:grid-cols-3 md:p-5">
+      <PricingNote
+        label="One paid plan"
+        value="Chef includes the AI allowance; top-ups stay out of the signup flow."
+      />
+      <PricingNote
+        label="Fair starting point"
+        value="Free is useful enough to build a real recipe library before upgrading."
+      />
+      <PricingNote
+        label="No lock-in"
+        value="Recipes remain yours, with export available whether you pay or not."
+      />
     </section>
   );
 }
 
-function Stepper({
+function PricingNote({
   label,
   value,
-  onChange,
-  max,
 }: {
   label: string;
-  value: number;
-  onChange: (value: number) => void;
-  max: number;
+  value: string;
 }) {
-  const clamp = (next: number) => onChange(Math.max(0, Math.min(max, next)));
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-bold text-(--foreground)">{label}</span>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          aria-label={`Decrease ${label}`}
-          onClick={() => clamp(value - 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--border) bg-(--card) text-(--foreground) hover:bg-(--muted)"
-        >
-          <Minus size={16} />
-        </button>
-        <input
-          type="number"
-          min={0}
-          max={max}
-          value={value}
-          onChange={(event) => clamp(Number(event.target.value) || 0)}
-          className="h-10 w-16 rounded-lg border-2 border-(--border) bg-(--card) text-center font-extrabold text-(--foreground)"
-        />
-        <button
-          type="button"
-          aria-label={`Increase ${label}`}
-          onClick={() => clamp(value + 1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--border) bg-(--card) text-(--foreground) hover:bg-(--muted)"
-        >
-          <Plus size={16} />
-        </button>
-      </div>
-    </label>
+    <div className="grid gap-1 rounded-lg border border-(--color-line) bg-[rgba(255,253,248,0.7)] p-3">
+      <strong className="text-sm text-(--color-ink)">{label}</strong>
+      <span className="text-sm leading-5 text-(--color-fog)">{value}</span>
+    </div>
   );
 }

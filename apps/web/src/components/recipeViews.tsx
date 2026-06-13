@@ -320,152 +320,165 @@ export function RecipeImageGallery({
   }
 
   return (
-    <section className={editorSectionClassName}>
-      <div className={sectionHeadingClassName}>
-        <strong>Photos</strong>
-        <span className="text-(--color-fog)">
+    <section className="grid flex-none gap-2.5 rounded-xl border-2 border-solid border-(--color-ink) bg-(--color-panel) p-3 shadow-pop-sm">
+      <div className="flex items-center justify-between gap-3 max-[720px]:flex-col max-[720px]:items-stretch">
+        <strong className="inline-flex items-center gap-2 font-display text-lg font-[720] leading-none text-(--color-ink)">
+          <ImagePlus size={16} />
+          Photos
+        </strong>
+        <span className="text-[12px] font-[760] text-(--color-fog)">
           {images.length
             ? `${images.length} image${images.length > 1 ? "s" : ""}`
             : null}
         </span>
       </div>
 
-      {images.length ? (
-        <div className="mb-3 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3">
-          {images.map((image, index) => (
-            <div
-              className={`group relative aspect-square overflow-hidden rounded-xl border-2 ${
-                index === 0 ? "border-(--color-sage)" : "border-(--color-ink)"
-              }`}
-              draggable
-              key={image.url}
-              onDragEnd={() => {
-                dragIndexRef.current = undefined;
-                setDragOver(false);
-              }}
-              onDragOver={(event) => event.preventDefault()}
-              onDragStart={() => {
-                dragIndexRef.current = index;
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const from = dragIndexRef.current;
-                if (from !== undefined) {
-                  reorder(from, index);
-                }
-                dragIndexRef.current = undefined;
-              }}
-            >
-              <img
-                alt={image.alt ?? ""}
-                className="h-full w-full object-cover"
-                decoding="async"
-                loading="lazy"
-                src={displayImageUrl(image.url)}
-              />
-              {index === 0 ? (
-                <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-(--color-sage) px-2 py-0.5 text-[11px] font-bold text-white">
-                  <Star size={11} />
-                  Cover
+      <div
+        className={`grid gap-2.5 ${
+          images.length
+            ? "grid-cols-[minmax(82px,0.24fr)_minmax(260px,1fr)] max-[720px]:grid-cols-1"
+            : "grid-cols-1"
+        }`}
+      >
+        {images.length ? (
+          <div className="grid content-start grid-cols-[repeat(auto-fill,minmax(62px,74px))] gap-2">
+            {images.map((image, index) => (
+              <div
+                className={`group relative aspect-square overflow-hidden rounded-lg border-2 ${
+                  index === 0 ? "border-(--color-sage)" : "border-(--color-ink)"
+                }`}
+                draggable
+                key={image.url}
+                onDragEnd={() => {
+                  dragIndexRef.current = undefined;
+                  setDragOver(false);
+                }}
+                onDragOver={(event) => event.preventDefault()}
+                onDragStart={() => {
+                  dragIndexRef.current = index;
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const from = dragIndexRef.current;
+                  if (from !== undefined) {
+                    reorder(from, index);
+                  }
+                  dragIndexRef.current = undefined;
+                }}
+              >
+                <img
+                  alt={image.alt ?? ""}
+                  className="h-full w-full object-cover"
+                  decoding="async"
+                  loading="lazy"
+                  src={displayImageUrl(image.url)}
+                />
+                {index === 0 ? (
+                  <span className="absolute left-1 top-1 inline-flex items-center gap-1 rounded-full bg-(--color-sage) px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    <Star size={10} />
+                    Cover
+                  </span>
+                ) : null}
+                <span className="absolute bottom-1 left-1 cursor-grab rounded-md bg-white/85 p-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <GripVertical size={13} />
                 </span>
-              ) : null}
-              <span className="absolute left-1.5 bottom-1.5 cursor-grab rounded-md bg-white/85 p-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                <GripVertical size={14} />
-              </span>
-              <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                {index !== 0 ? (
+                <div className="absolute top-1 right-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  {index !== 0 ? (
+                    <button
+                      aria-label="Make cover photo"
+                      className="rounded-md bg-white/90 p-1 hover:bg-white"
+                      onClick={() => makeCover(index)}
+                      type="button"
+                    >
+                      <Star size={13} />
+                    </button>
+                  ) : null}
                   <button
-                    aria-label="Make cover photo"
-                    className="rounded-md bg-white/90 p-1 hover:bg-white"
-                    onClick={() => makeCover(index)}
+                    aria-label="Remove photo"
+                    className="rounded-md bg-(--color-tomato) p-1 text-white hover:bg-(--color-tomato-dark)"
+                    onClick={() => removeAt(index)}
                     type="button"
                   >
-                    <Star size={14} />
+                    <X size={13} />
                   </button>
-                ) : null}
-                <button
-                  aria-label="Remove photo"
-                  className="rounded-md bg-(--color-tomato) p-1 text-white hover:bg-(--color-tomato-dark)"
-                  onClick={() => removeAt(index)}
-                  type="button"
-                >
-                  <X size={14} />
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        ) : null}
 
-      <button
-        className={`mb-2 flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${
-          dragOver
-            ? "border-(--color-sage) bg-(--color-sage-soft)"
-            : "border-(--color-line) hover:border-(--color-ink)"
-        }`}
-        onClick={() => fileInputRef.current?.click()}
-        onDragLeave={() => setDragOver(false)}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragOver(true);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragOver(false);
-          if (event.dataTransfer.files.length) {
-            void addFiles(event.dataTransfer.files);
-          }
-        }}
-        type="button"
-      >
-        {busy ? (
-          <Loader2 className="animate-spin" size={20} />
-        ) : (
-          <ImagePlus size={20} />
-        )}
-        <span className="text-sm font-semibold">
-          {busy ? "Uploading…" : "Drop images here or click to upload"}
-        </span>
-        <span className="text-xs text-(--color-fog)">
-          Compressed and stored automatically
-        </span>
-      </button>
-      <input
-        accept="image/*"
-        className="hidden"
-        multiple
-        onChange={(event) => {
-          if (event.target.files?.length) {
-            void addFiles(event.target.files);
-          }
-          event.target.value = "";
-        }}
-        ref={fileInputRef}
-        type="file"
-      />
-
-      <div className="flex gap-2">
-        <input
-          className="min-w-0 flex-1 rounded-lg border-2 border-(--color-ink) px-3 py-2 text-sm"
-          onChange={(event) => setUrlInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
+        <div className="grid gap-2">
+          <button
+            className={`flex min-h-[72px] w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-2 text-center transition-colors ${
+              dragOver
+                ? "border-(--color-sage) bg-(--color-sage-soft)"
+                : "border-(--color-line) hover:border-(--color-ink)"
+            }`}
+            onClick={() => fileInputRef.current?.click()}
+            onDragLeave={() => setDragOver(false)}
+            onDragOver={(event) => {
               event.preventDefault();
-              void addFromUrl();
-            }
-          }}
-          placeholder="…or paste an image URL"
-          value={urlInput}
-        />
-        <Button
-          disabled={busy || !urlInput.trim()}
-          onClick={() => void addFromUrl()}
-          size="sm"
-          type="button"
-        >
-          <Plus size={16} />
-          Add
-        </Button>
+              setDragOver(true);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragOver(false);
+              if (event.dataTransfer.files.length) {
+                void addFiles(event.dataTransfer.files);
+              }
+            }}
+            type="button"
+          >
+            {busy ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              <ImagePlus size={16} />
+            )}
+            <span className="text-[12.5px] font-semibold">
+              {busy ? "Uploading…" : "Drop images here or click to upload"}
+            </span>
+            <span className="text-[10.5px] text-(--color-fog)">
+              Compressed and stored automatically
+            </span>
+          </button>
+          <input
+            accept="image/*"
+            className="hidden"
+            multiple
+            onChange={(event) => {
+              if (event.target.files?.length) {
+                void addFiles(event.target.files);
+              }
+              event.target.value = "";
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
+
+          <div className="flex gap-2">
+            <input
+              className="min-w-0 flex-1 rounded-lg border-2 border-(--color-ink) px-2.5 py-1.5 text-[13px]"
+              onChange={(event) => setUrlInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void addFromUrl();
+                }
+              }}
+              placeholder="…or paste an image URL"
+              value={urlInput}
+            />
+            <Button
+              disabled={busy || !urlInput.trim()}
+              onClick={() => void addFromUrl()}
+              size="sm"
+              type="button"
+            >
+              <Plus size={16} />
+              Add
+            </Button>
+          </div>
+        </div>
       </div>
 
       {error ? (

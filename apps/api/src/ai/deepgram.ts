@@ -14,13 +14,18 @@ export class DeepgramRequestError extends Error {
 
 const ERROR_BODY_LIMIT = 500;
 const DEEPGRAM_LISTEN_URL = "https://api.deepgram.com/v1/listen";
+const DEEPGRAM_KEEPALIVE_INTERVAL_MS = 3_000;
+const DEEPGRAM_KEEPALIVE_MESSAGE = JSON.stringify({ type: "KeepAlive" });
 
 export function buildDeepgramListenUrl() {
   const url = new URL(DEEPGRAM_LISTEN_URL);
   url.searchParams.set("model", "nova-3");
+  url.searchParams.set("encoding", "linear16");
+  url.searchParams.set("sample_rate", "16000");
+  url.searchParams.set("channels", "1");
   url.searchParams.set("smart_format", "true");
   url.searchParams.set("interim_results", "true");
-  url.searchParams.set("punctuate", "true");
+  url.searchParams.set("language", "multi");
   return url.toString();
 }
 
@@ -76,6 +81,23 @@ function proxyWebSockets(clientSocket: WebSocket, deepgramSocket: WebSocket) {
   clientSocket.accept({ allowHalfOpen: true });
   deepgramSocket.accept({ allowHalfOpen: true });
 
+  let keepAliveInterval: ReturnType<typeof setInterval> | undefined = setInterval(
+    () => {
+      if (!sendIfOpen(deepgramSocket, DEEPGRAM_KEEPALIVE_MESSAGE)) {
+        stopKeepAlive();
+      }
+    },
+    DEEPGRAM_KEEPALIVE_INTERVAL_MS,
+  );
+
+  function stopKeepAlive() {
+    if (!keepAliveInterval) {
+      return;
+    }
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = undefined;
+  }
+
   clientSocket.addEventListener("message", (event) => {
     sendIfOpen(deepgramSocket, event.data);
   });
@@ -84,19 +106,23 @@ function proxyWebSockets(clientSocket: WebSocket, deepgramSocket: WebSocket) {
   });
 
   clientSocket.addEventListener("close", (event) => {
+    stopKeepAlive();
     closeSocket(deepgramSocket, event, "client closed");
     closeSocket(clientSocket, event, "client closed");
   });
   deepgramSocket.addEventListener("close", (event) => {
+    stopKeepAlive();
     closeSocket(clientSocket, event, "deepgram closed");
     closeSocket(deepgramSocket, event, "deepgram closed");
   });
 
   clientSocket.addEventListener("error", () => {
+    stopKeepAlive();
     closeSocket(deepgramSocket, undefined, "client error");
     closeSocket(clientSocket, undefined, "client error");
   });
   deepgramSocket.addEventListener("error", () => {
+    stopKeepAlive();
     closeSocket(clientSocket, undefined, "deepgram error");
     closeSocket(deepgramSocket, undefined, "deepgram error");
   });
@@ -104,12 +130,14 @@ function proxyWebSockets(clientSocket: WebSocket, deepgramSocket: WebSocket) {
 
 function sendIfOpen(socket: WebSocket, data: unknown) {
   if (socket.readyState !== WebSocket.OPEN) {
-    return;
+    return false;
   }
   try {
     socket.send(data as string | ArrayBuffer | ArrayBufferView);
+    return true;
   } catch {
     closeSocket(socket, undefined, "send failed");
+    return false;
   }
 }
 

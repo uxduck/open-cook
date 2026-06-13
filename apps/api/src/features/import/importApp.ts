@@ -59,7 +59,6 @@ export const importApp = new Hono<Env>()
       const recipe = await c.var.store.create(input);
       const structured = await structureRecipeWithAi(recipe, {
         ai: c.env.AI,
-        model: c.env.WORKERS_AI_RECIPE_STRUCTURE_MODEL,
       });
       const updated =
         (await c.var.store.update(recipe.id, {
@@ -89,11 +88,9 @@ export const importApp = new Hono<Env>()
       try {
         const importedRecipe = await importRecipeFromWebsite(c.req.valid("json"), {
           ai: c.env.AI,
-          aiModel: c.env.WORKERS_AI_MODEL,
         });
         const structuredRecipe = await structureRecipeWithAi(importedRecipe, {
           ai: c.env.AI,
-          model: c.env.WORKERS_AI_RECIPE_STRUCTURE_MODEL,
         });
         const mirroredRecipes = await mirrorRecipeImages(
           [structuredRecipe],

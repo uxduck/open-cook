@@ -191,11 +191,13 @@ This repo includes a Codex plugin at `plugins/opencook` and a repo-local
 marketplace at `.agents/plugins/marketplace.json`. The plugin ID is `opencook`
 and the displayed product name is OpenCook.
 
-For authenticated APIs, prefer a Better Auth bearer session token:
+For authenticated APIs, open the API page in the web app and use
+`Connect Codex` to create a scoped Codex token. The UI shows the full token only
+once and stores only its hash server-side. Configure the plugin with:
 
 ```sh
 OPEN_COOK_API_BASE=https://open-cook.com
-OPEN_COOK_AUTH_TOKEN=your-better-auth-session-token
+OPEN_COOK_AUTH_TOKEN=your-codex-token
 ```
 
 For local development, `OPEN_COOK_API_BASE` defaults to

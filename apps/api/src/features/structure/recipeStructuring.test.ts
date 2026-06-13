@@ -72,11 +72,10 @@ describe("recipe structuring", () => {
 
     const recipe = await structureRecipeWithAi(baseRecipe, {
       ai,
-      model: "@cf/test/model",
     });
 
     expect(ai.run).toHaveBeenCalledWith(
-      "@cf/test/model",
+      "@cf/zai-org/glm-4.7-flash",
       expect.objectContaining({
         response_format: expect.objectContaining({ type: "json_schema" }),
       }),

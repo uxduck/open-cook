@@ -83,8 +83,8 @@ export const aiApp = new Hono<Env>()
         );
       }
 
-      // A recipe restyle is a metered feature (free: 3/mo, Pro: 20/mo, plus
-      // credit-pack overage. All tracked in Paid). Every remix counts as one.
+      // A recipe restyle is a metered feature (free: 3/mo, Chef: 20/mo, plus
+      // any internal/add-on grants. All tracked in Paid). Every remix counts as one.
       // While AI_PAYWALL_DISABLED, skip billing entirely (no check, no meter).
       const billing = createPaidBilling(c.env);
       if (!AI_PAYWALL_DISABLED) {
@@ -95,7 +95,8 @@ export const aiApp = new Hono<Env>()
           if (error instanceof BillingLimitError) {
             return c.json(
               {
-                error: "You're out of restyle credits. Upgrade or top up to continue.",
+                error:
+                  "You're out of monthly AI recipe edits. Upgrade to Chef to continue.",
                 reason: error.reason,
               },
               402,

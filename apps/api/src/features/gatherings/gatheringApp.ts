@@ -9,6 +9,8 @@ import {
   type GatheringGuestResponse,
   gatheringGuestResponseSchema,
   type GatheringInvitee,
+  type OwnedGathering,
+  ownedGatheringSchema,
   type PublicGathering,
   publicGatheringSchema,
   type Recipe,
@@ -22,6 +24,7 @@ import type { ReactElement } from "react";
 import { Resend } from "resend";
 import * as v from "valibot";
 import type { Env } from "../../AppContext";
+import { workersAiModels } from "../../ai/workersAiModels";
 import { workersAiResponseObject } from "../../ai/workersAiResponses";
 import {
   gatheringArtifacts,
@@ -51,14 +54,15 @@ import {
   type RecipeRecommendationResult,
 } from "./recipeRecommendations";
 
-const defaultAiModel = "@cf/moonshotai/kimi-k2.6";
+const gatheringDraftAiTimeoutMs = 4_000;
+const gatheringRecommendationAiTimeoutMs = 4_000;
 const defaultGuestQuestion = "Tell us anything we should avoid or adapt.";
-const defaultWelcome = "Make it warm, simple, and easy to share.";
+const defaultCreatorDirection = "warm, simple, and easy to share";
 const defaultGatheringTitle = "OpenCook gathering";
-const defaultDraftWelcome =
-  "Welcome to the gathering. Pick what sounds good and tell us what you need.";
+const copiedGatheringTitleSuffix = " copy";
 const defaultResendFromEmail = "OpenCook <onboarding@resend.dev>";
 const defaultFalImageModel = "fal-ai/flux/schnell";
+const defaultFalVideoModel = "fal-ai/veo3.1/fast";
 const defaultElevenLabsModel = "eleven_multilingual_v2";
 const defaultElevenLabsOutputFormat = "mp3_44100_128";
 const defaultElevenLabsVoiceId = "JBFqnCBsd6RMkjVDRZzb";
@@ -163,7 +167,7 @@ const publishGatheringRequestSchema = v.object({
 const publishOwnedGatheringRequestSchema = updateGatheringRequestSchema;
 
 const publishGatheringResponseSchema = v.object({
-  gathering: gatheringSchema,
+  gathering: ownedGatheringSchema,
   url: v.pipe(v.string(), v.url()),
 });
 
@@ -172,7 +176,7 @@ const sendGatheringInvitesRequestSchema = v.object({
 });
 
 const sendGatheringInvitesResponseSchema = v.object({
-  gathering: gatheringSchema,
+  gathering: ownedGatheringSchema,
   sentCount: v.number(),
   url: v.pipe(v.string(), v.url()),
 });
@@ -182,6 +186,7 @@ const gatheringListResponseSchema = v.array(gatheringSchema);
 const gatheringArtifactIdSchema = v.picklist([
   "menu-images",
   "page-artwork",
+  "rsvp-artwork",
   "voiceover",
   "video-teaser",
 ]);
@@ -392,17 +397,17 @@ export const gatheringApp = new Hono<Env>()
         }
       }
 
-      const title = input.title?.trim() || defaultGatheringTitle;
+      const title = input.title?.trim() ?? "";
       const now = new Date().toISOString();
       const row: GatheringRow = {
         id: crypto.randomUUID(),
         userId: c.var.user!.id,
-        slug: await uniqueSlug(c, title),
+        slug: await uniqueSlug(c, title || defaultGatheringTitle),
         title,
         prompt: input.prompt?.trim() || null,
-        welcome: input.welcome?.trim() || defaultDraftWelcome,
+        welcome: input.welcome?.trim() ?? "",
         dietary: input.dietary?.trim() || null,
-        guestQuestion: input.guestQuestion?.trim() || defaultGuestQuestion,
+        guestQuestion: input.guestQuestion?.trim() ?? "",
         recipeIds,
         invitees: uniqueEmails(input.inviteeEmails ?? []).map((email) => ({
           email,
@@ -494,7 +499,7 @@ export const gatheringApp = new Hono<Env>()
 
       return c.json(
         {
-          gathering: gatheringFromRow({
+          gathering: await ownedGatheringFromRow(c, {
             ...row,
             status: "published",
             publishedAt,
@@ -543,7 +548,7 @@ export const gatheringApp = new Hono<Env>()
       responses: {
         200: {
           content: {
-            "application/json": { schema: resolver(gatheringSchema) },
+            "application/json": { schema: resolver(ownedGatheringSchema) },
           },
           description: "Gathering returned.",
         },
@@ -557,7 +562,59 @@ export const gatheringApp = new Hono<Env>()
       }
 
       const row = await getOwnedGatheringRow(c, c.req.param("id"));
-      return row ? c.json(gatheringFromRow(row)) : c.json({ error: "Not found" }, 404);
+      return row
+        ? c.json(await ownedGatheringFromRow(c, row))
+        : c.json({ error: "Not found" }, 404);
+    },
+  )
+  .post(
+    "/mine/:id/duplicate",
+    requireAuthMiddleware,
+    describeRoute({
+      description:
+        "Duplicate an owned gathering as a fresh editable draft. Guest responses and generated artifacts stay on the original gathering.",
+      responses: {
+        201: {
+          content: {
+            "application/json": { schema: resolver(ownedGatheringSchema) },
+          },
+          description: "Gathering duplicated as a draft.",
+        },
+        404: { description: "Gathering not found." },
+        503: { description: "D1 storage is not configured." },
+      },
+    }),
+    async (c) => {
+      if (!c.var.db) {
+        return c.json({ error: "Gatherings require the DB binding." }, 503);
+      }
+
+      const source = await getOwnedGatheringRow(c, c.req.param("id"));
+      if (!source) {
+        return c.json({ error: "Not found" }, 404);
+      }
+
+      const now = new Date().toISOString();
+      const title = copiedGatheringTitle(source.title);
+      const copy: GatheringRow = {
+        id: crypto.randomUUID(),
+        userId: source.userId,
+        slug: await uniqueSlug(c, title),
+        title,
+        prompt: source.prompt,
+        welcome: source.welcome,
+        dietary: source.dietary,
+        guestQuestion: source.guestQuestion,
+        recipeIds: uniqueStrings(source.recipeIds),
+        invitees: source.invitees.map((invitee) => ({ email: invitee.email })),
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+        publishedAt: null,
+      };
+
+      await c.var.db.insert(gatherings).values(copy);
+      return c.json(await ownedGatheringFromRow(c, copy), 201);
     },
   )
   .patch(
@@ -568,7 +625,7 @@ export const gatheringApp = new Hono<Env>()
       responses: {
         200: {
           content: {
-            "application/json": { schema: resolver(gatheringSchema) },
+            "application/json": { schema: resolver(ownedGatheringSchema) },
           },
           description: "Gathering saved.",
         },
@@ -598,7 +655,7 @@ export const gatheringApp = new Hono<Env>()
         .set(update.values)
         .where(and(eq(gatherings.userId, c.var.user!.id), eq(gatherings.id, row.id)));
 
-      return c.json(gatheringFromRow({ ...row, ...update.values }));
+      return c.json(await ownedGatheringFromRow(c, { ...row, ...update.values }));
     },
   )
   .post(
@@ -681,7 +738,7 @@ export const gatheringApp = new Hono<Env>()
       });
 
       return c.json({
-        gathering: gatheringFromRow({ ...nextRow, ...values }),
+        gathering: await ownedGatheringFromRow(c, { ...nextRow, ...values }),
         url,
       });
     },
@@ -764,7 +821,7 @@ export const gatheringApp = new Hono<Env>()
         .where(and(eq(gatherings.userId, c.var.user!.id), eq(gatherings.id, row.id)));
 
       return c.json({
-        gathering: gatheringFromRow({ ...row, ...values }),
+        gathering: await ownedGatheringFromRow(c, { ...row, ...values }),
         sentCount: emailsToSend.length,
         url,
       });
@@ -957,67 +1014,67 @@ async function recommendGatheringRecipes(
     return stripInternalRecommendationState(deterministic);
   }
 
-  const model =
-    c.env.WORKERS_AI_RECIPE_PICKER_MODEL ??
-    c.env.WORKERS_AI_MODEL ??
-    c.env.WORKERS_AI_RECIPE_REMIX_MODEL ??
-    defaultAiModel;
+  const model = workersAiModels.gatheringRecipePicker;
   const candidates = deterministic.candidates.slice(
     0,
     maxAiRecipeRecommendationCandidates,
   );
 
   try {
-    const result = await c.env.AI.run(model, {
-      max_completion_tokens: 900,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You pick recipes for a cooking app. Return only JSON matching the schema. Choose only from the provided candidate ids. Respect allergies, avoided ingredients, diet pattern, dietary notes, cook time, and user preferences. Do not claim allergy safety; use cautious practical reasons.",
-        },
-        {
-          role: "user",
-          content: recipeRecommendationPrompt({
-            candidates,
-            context,
-            count,
-            preferences,
-          }),
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "RecipeRecommendations",
-          strict: false,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["picks"],
-            properties: {
-              picks: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["id"],
-                  properties: {
-                    id: { type: "string" },
-                    reason: { type: "string", maxLength: 180 },
+    const result = await withTimeout(
+      c.env.AI.run(model, {
+        max_completion_tokens: 512,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You pick recipes for a cooking app. Return only JSON matching the schema. Choose only from the provided candidate ids. Respect allergies, avoided ingredients, diet pattern, dietary notes, cook time, and user preferences. Do not claim allergy safety; use cautious practical reasons.",
+          },
+          {
+            role: "user",
+            content: recipeRecommendationPrompt({
+              candidates,
+              context,
+              count,
+              preferences,
+            }),
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "RecipeRecommendations",
+            strict: false,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["picks"],
+              properties: {
+                picks: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["id"],
+                    properties: {
+                      id: { type: "string" },
+                      reason: { type: "string", maxLength: 180 },
+                    },
                   },
                 },
-              },
-              warnings: {
-                type: "array",
-                items: { type: "string", maxLength: 200 },
+                warnings: {
+                  type: "array",
+                  items: { type: "string", maxLength: 200 },
+                },
               },
             },
           },
         },
-      },
-      temperature: 0.25,
-    });
+        temperature: 0.25,
+      }),
+      gatheringRecommendationAiTimeoutMs,
+      "Gathering recommendation AI timed out.",
+    );
 
     const parsed = workersAiResponseObject(result);
     const validation = v.safeParse(aiRecipeRecommendationResponseSchema, parsed);
@@ -1183,19 +1240,31 @@ async function gatheringUpdateFromInput(
   };
 
   if (input.title !== undefined) {
-    values.title = input.title.trim() || row.title;
+    const title = input.title.trim();
+    if (!title && row.status === "published") {
+      return { error: "Add a title before saving." };
+    }
+    values.title = title;
   }
   if (input.prompt !== undefined) {
     values.prompt = input.prompt.trim() || null;
   }
   if (input.welcome !== undefined) {
-    values.welcome = input.welcome.trim() || row.welcome;
+    const welcome = input.welcome.trim();
+    if (!welcome && row.status === "published") {
+      return { error: "Add a welcome note before saving." };
+    }
+    values.welcome = welcome;
   }
   if (input.dietary !== undefined) {
     values.dietary = input.dietary.trim() || null;
   }
   if (input.guestQuestion !== undefined) {
-    values.guestQuestion = input.guestQuestion.trim() || row.guestQuestion;
+    const guestQuestion = input.guestQuestion.trim();
+    if (!guestQuestion && row.status === "published") {
+      return { error: "Add a guest question before saving." };
+    }
+    values.guestQuestion = guestQuestion;
   }
   if (input.recipeIds !== undefined) {
     const recipeIds = uniqueStrings(input.recipeIds);
@@ -1235,41 +1304,44 @@ async function generateGatheringDraft(
     return fallback;
   }
 
-  const model =
-    c.env.WORKERS_AI_MODEL ?? c.env.WORKERS_AI_RECIPE_REMIX_MODEL ?? defaultAiModel;
+  const model = workersAiModels.gatheringDraft;
   try {
-    const result = await c.env.AI.run(model, {
-      max_completion_tokens: 900,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You write concise, warm gathering page copy for a cooking app. Return only JSON matching the schema. Do not overpromise allergy safety.",
-        },
-        {
-          role: "user",
-          content: gatheringDraftPrompt(input),
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "GatheringDraft",
-          strict: false,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["title", "welcome", "guestQuestion"],
-            properties: {
-              title: { type: "string", maxLength: 120 },
-              welcome: { type: "string", maxLength: 2_000 },
-              guestQuestion: { type: "string", maxLength: 300 },
+    const result = await withTimeout(
+      c.env.AI.run(model, {
+        max_completion_tokens: 320,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You write concise guest-facing invitation copy for a cooking app. The creator note is private theme and event direction, not copy to repeat. Transform terse, whimsical, or practical themes into polished invite language that invitees can read. Return only JSON matching the schema. Do not overpromise allergy safety.",
+          },
+          {
+            role: "user",
+            content: gatheringDraftPrompt(input),
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "GatheringDraft",
+            strict: false,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["title", "welcome", "guestQuestion"],
+              properties: {
+                title: { type: "string", maxLength: 120 },
+                welcome: { type: "string", maxLength: 2_000 },
+                guestQuestion: { type: "string", maxLength: 300 },
+              },
             },
           },
         },
-      },
-      temperature: 0.55,
-    });
+        temperature: 0.45,
+      }),
+      gatheringDraftAiTimeoutMs,
+      "Gathering draft AI timed out.",
+    );
     const parsed = workersAiResponseObject(result);
     const validation = v.safeParse(
       v.object({
@@ -1293,6 +1365,26 @@ async function generateGatheringDraft(
   }
 }
 
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
 function gatheringDraftPrompt(input: {
   title?: string;
   prompt?: string;
@@ -1300,13 +1392,16 @@ function gatheringDraftPrompt(input: {
   guestQuestion?: string;
   recipes: Recipe[];
 }) {
+  const creatorDirection = creatorThemeDirection(input.prompt);
   const recipeSummaries = input.recipes.map((recipe) => ({
     title: recipe.title,
     description: recipe.description,
     tags: recipe.tags,
     servings: recipe.servings,
   }));
-  return `Creator note: ${input.prompt || defaultWelcome}
+  return `Private creator theme or event direction: ${
+    creatorDirection || defaultCreatorDirection
+  }
 Draft title, if any: ${input.title || "none"}
 Known dietary notes: ${input.dietary || "none"}
 Guest question, if any: ${input.guestQuestion || defaultGuestQuestion}
@@ -1315,9 +1410,14 @@ ${JSON.stringify(recipeSummaries, null, 2)}
 
 Write:
 - a short title for the shared page,
-- a welcome paragraph the creator can edit before publishing,
+- a welcome paragraph that invitees will read on the published page,
 - a practical question for guests.
-If there is only one recipe, do not ask guests to choose between recipes.`;
+Rules:
+- Do not expose planning language such as "make it warm" or "creator note".
+- Do not copy the creator direction verbatim unless it is already a natural event name.
+- If the direction is terse, like "dragon banquet", infer a tasteful mood and write a real invitation.
+- Weave selected recipes into the invitation naturally.
+- If there is only one recipe, do not ask guests to choose between recipes.`;
 }
 
 function fallbackDraft(input: {
@@ -1330,11 +1430,12 @@ function fallbackDraft(input: {
   const title = input.title?.trim() || fallbackTitle(input.recipes);
   const recipeList = input.recipes.map((recipe) => recipe.title).join(", ");
   const singleRecipe = input.recipes.length === 1;
+  const theme = creatorThemeDirection(input.prompt);
   const welcomeParts = [
-    input.prompt?.trim() || `You are invited to ${title}.`,
+    fallbackWelcomeOpening(title, theme),
     singleRecipe
       ? `The menu is ${recipeList}.`
-      : `Pick what you would like from ${recipeList}.`,
+      : `Choose what you would like from ${recipeList}.`,
     input.dietary?.trim() ? `Known dietary notes: ${input.dietary.trim()}.` : "",
   ].filter(Boolean);
 
@@ -1343,9 +1444,33 @@ function fallbackDraft(input: {
     welcome: welcomeParts.join(" "),
     guestQuestion:
       input.guestQuestion?.trim() ||
-      (singleRecipe ? defaultGuestQuestion : "Which recipe would you like?"),
+      (singleRecipe ? defaultGuestQuestion : "Which dish would you like?"),
     provider: { provider: "template" },
   };
+}
+
+function fallbackWelcomeOpening(title: string, theme?: string) {
+  if (!theme) {
+    return `Come settle in for ${title}.`;
+  }
+
+  return `Come settle in for ${title}, with a ${theme} mood running through the table.`;
+}
+
+function creatorThemeDirection(prompt?: string) {
+  const trimmed = prompt?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const withoutLegacyDefault = trimmed
+    .replace(/^make it warm,\s*simple,\s*and easy to share\.?\s*;?\s*/i, "")
+    .trim();
+  if (!withoutLegacyDefault) {
+    return undefined;
+  }
+
+  return withoutLegacyDefault;
 }
 
 function fallbackTitle(recipes: Recipe[]) {
@@ -1383,6 +1508,8 @@ type StoredMedia = {
 
 const publishedArtifactOrder: GatheringArtifactKind[] = [
   "page-artwork",
+  "menu-images",
+  "rsvp-artwork",
   "voiceover",
   "video-teaser",
 ];
@@ -1412,9 +1539,7 @@ function publishedGatheringArtifactPlaceholders(
   input: GatheringArtifactGenerationInput & { gatheringId: string },
   now: string,
 ): NewGatheringArtifactRow[] {
-  const imageModel = optionalEnv(c.env.FAL_IMAGE_MODEL) ?? defaultFalImageModel;
-  const pageArtworkModel = optionalEnv(c.env.FAL_PAGE_ARTWORK_MODEL) ?? imageModel;
-  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL);
+  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL) ?? defaultFalVideoModel;
   const voiceProvider = optionalEnv(c.env.ELEVENLABS_API_KEY) ? "elevenlabs" : "fal";
   const voiceModel =
     voiceProvider === "elevenlabs"
@@ -1422,20 +1547,22 @@ function publishedGatheringArtifactPlaceholders(
       : optionalEnv(c.env.FAL_VOICE_MODEL);
 
   return [
-    gatheringArtifactRowFromJob(
-      input.gatheringId,
-      {
-        id: "page-artwork",
-        label: "Page artwork",
-        provider: "fal",
-        status: "submitted",
-        model: pageArtworkModel,
-      },
-      {
-        createdAt: now,
-        prompt: gatheringPageArtworkPrompt(input),
-        status: "pending",
-      },
+    ...gatheringImageArtifactDefinitions(c, input).map((definition) =>
+      gatheringArtifactRowFromJob(
+        input.gatheringId,
+        {
+          id: definition.id,
+          label: definition.label,
+          provider: "fal",
+          status: "submitted",
+          model: definition.model,
+        },
+        {
+          createdAt: now,
+          prompt: stringField(definition.input, "prompt"),
+          status: "pending",
+        },
+      ),
     ),
     gatheringArtifactRowFromJob(
       input.gatheringId,
@@ -1484,41 +1611,71 @@ async function generatePublishedGatheringArtifacts(
   );
 }
 
-async function submitPublishedGatheringArtifactJobs(
+function gatheringImageArtifactDefinitions(
   c: Context<Env>,
   input: GatheringArtifactGenerationInput,
-): Promise<GatheringArtifactJob[]> {
+): FalArtifactDefinition[] {
   const imageModel = optionalEnv(c.env.FAL_IMAGE_MODEL) ?? defaultFalImageModel;
   const pageArtworkModel = optionalEnv(c.env.FAL_PAGE_ARTWORK_MODEL) ?? imageModel;
-  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL);
-  const webhookUrl = gatheringFalWebhookUrl(c);
 
-  const definitions: FalArtifactDefinition[] = [
+  return [
     {
       id: "page-artwork",
       input: {
         image_size: "landscape_16_9",
         prompt: gatheringPageArtworkPrompt(input),
       },
-      label: "Page artwork",
+      label: "Hero artwork",
       model: pageArtworkModel,
     },
     {
-      id: "video-teaser",
+      id: "menu-images",
       input: {
-        prompt: gatheringVideoPrompt(input),
+        image_size: "landscape_16_9",
+        prompt: gatheringMenuImagePrompt(input),
       },
-      label: "Video teaser",
-      missingModelMessage:
-        "Set FAL_VIDEO_MODEL to submit a text-to-video job for this artifact.",
-      model: videoModel,
+      label: "Menu artwork",
+      model: imageModel,
+    },
+    {
+      id: "rsvp-artwork",
+      input: {
+        image_size: "landscape_16_9",
+        prompt: gatheringRsvpArtworkPrompt(input),
+      },
+      label: "Reply artwork",
+      model: imageModel,
     },
   ];
+}
+
+async function submitPublishedGatheringArtifactJobs(
+  c: Context<Env>,
+  input: GatheringArtifactGenerationInput,
+): Promise<GatheringArtifactJob[]> {
+  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL) ?? defaultFalVideoModel;
+  const webhookUrl = gatheringFalWebhookUrl(c);
+
+  const imageDefinitions = gatheringImageArtifactDefinitions(c, input);
+  const videoDefinition: FalArtifactDefinition = {
+    id: "video-teaser",
+    input: {
+      aspect_ratio: "16:9",
+      duration: "4s",
+      generate_audio: false,
+      prompt: gatheringVideoPrompt(input),
+      resolution: "720p",
+    },
+    label: "Video teaser",
+    model: videoModel,
+  };
 
   return Promise.all([
-    submitGatheringArtifactJob(c, definitions[0]!, { webhookUrl }),
+    ...imageDefinitions.map((definition) =>
+      submitGatheringArtifactJob(c, definition, { webhookUrl }),
+    ),
     submitWelcomeAudioJob(c, input),
-    submitGatheringArtifactJob(c, definitions[1]!, { webhookUrl }),
+    submitGatheringArtifactJob(c, videoDefinition, { webhookUrl }),
   ]);
 }
 
@@ -1739,46 +1896,25 @@ async function submitGatheringArtifactJobs(
     recipes: Recipe[];
   },
 ): Promise<GatheringArtifactJob[]> {
-  const imageModel = optionalEnv(c.env.FAL_IMAGE_MODEL) ?? defaultFalImageModel;
-  const pageArtworkModel = optionalEnv(c.env.FAL_PAGE_ARTWORK_MODEL) ?? imageModel;
-  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL);
-
-  const definitions: FalArtifactDefinition[] = [
-    {
-      id: "menu-images",
-      input: {
-        image_size: "landscape_16_9",
-        prompt: gatheringMenuImagePrompt(input),
-      },
-      label: "Menu images",
-      model: imageModel,
+  const videoModel = optionalEnv(c.env.FAL_VIDEO_MODEL) ?? defaultFalVideoModel;
+  const imageDefinitions = gatheringImageArtifactDefinitions(c, input);
+  const videoDefinition: FalArtifactDefinition = {
+    id: "video-teaser",
+    input: {
+      aspect_ratio: "16:9",
+      duration: "4s",
+      generate_audio: false,
+      prompt: gatheringVideoPrompt(input),
+      resolution: "720p",
     },
-    {
-      id: "page-artwork",
-      input: {
-        image_size: "landscape_16_9",
-        prompt: gatheringPageArtworkPrompt(input),
-      },
-      label: "Page artwork",
-      model: pageArtworkModel,
-    },
-    {
-      id: "video-teaser",
-      input: {
-        prompt: gatheringVideoPrompt(input),
-      },
-      label: "Video teaser",
-      missingModelMessage:
-        "Set FAL_VIDEO_MODEL to submit a text-to-video job for this artifact.",
-      model: videoModel,
-    },
-  ];
+    label: "Video teaser",
+    model: videoModel,
+  };
 
   const jobs = await Promise.all([
-    submitGatheringArtifactJob(c, definitions[0]!),
-    submitGatheringArtifactJob(c, definitions[1]!),
+    ...imageDefinitions.map((definition) => submitGatheringArtifactJob(c, definition)),
     submitWelcomeAudioJob(c, input),
-    submitGatheringArtifactJob(c, definitions[2]!),
+    submitGatheringArtifactJob(c, videoDefinition),
   ]);
   return jobs;
 }
@@ -2214,13 +2350,15 @@ function falErrorMessage(body: unknown, status: number, statusText: string) {
 function gatheringMenuImagePrompt(input: {
   title: string;
   prompt?: string;
+  welcome: string;
   dietary?: string;
   recipes: Recipe[];
 }) {
   return [
-    `Create a polished editorial food image for a shared menu called "${input.title}".`,
-    "Show a coherent spread inspired by these dishes, with warm natural light, real plating, and no readable text or logos.",
-    input.prompt ? `Creative direction: ${input.prompt}` : "",
+    `Create a polished menu-spread image for the gathering "${input.title}".`,
+    "This image will sit between the invitation copy and the recipe cards, so it should feel like a designed event page asset.",
+    gatheringVisualBrief(input),
+    "Show a coherent table spread inspired by the selected dishes, real plating, inviting hosting energy, no readable text or logos.",
     input.dietary ? `Dietary context to respect visually: ${input.dietary}` : "",
     `Dishes: ${recipePromptList(input.recipes)}`,
   ]
@@ -2235,10 +2373,25 @@ function gatheringPageArtworkPrompt(input: {
   recipes: Recipe[];
 }) {
   return [
-    `Create a hero image for an OpenCook gathering page titled "${input.title}".`,
-    "The image should feel creative and shareable, with a table setting, finished dishes, and inviting atmosphere. Do not add readable text.",
-    `Page mood: ${input.welcome}`,
-    input.prompt ? `Host direction: ${input.prompt}` : "",
+    `Create a hero image for an OpenCook gathering invitation titled "${input.title}".`,
+    "This is the first image invitees see. Make it artistic, event-specific, and appetizing without adding readable text.",
+    gatheringVisualBrief(input),
+    `Menu inspiration: ${recipePromptList(input.recipes)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function gatheringRsvpArtworkPrompt(input: {
+  title: string;
+  prompt?: string;
+  welcome: string;
+  recipes: Recipe[];
+}) {
+  return [
+    `Create a smaller RSVP-section artwork image for the gathering "${input.title}".`,
+    "This image appears beside the guest reply form. Focus on atmospheric table details: place settings, serving pieces, ingredients, candlelight or event-appropriate details. No readable text or logos.",
+    gatheringVisualBrief(input),
     `Menu inspiration: ${recipePromptList(input.recipes)}`,
   ]
     .filter(Boolean)
@@ -2252,10 +2405,25 @@ function gatheringVideoPrompt(input: {
   recipes: Recipe[];
 }) {
   return [
-    `A 5 second cinematic food invitation teaser for "${input.title}".`,
+    `A 4 second cinematic food invitation teaser for "${input.title}".`,
     "Camera glides over a table being set, close-ups of the featured dishes, warm human hosting energy, no text overlays.",
-    `Tone: ${input.prompt || input.welcome}`,
+    gatheringVisualBrief(input),
     `Featured dishes: ${recipePromptList(input.recipes)}`,
+  ].join("\n");
+}
+
+function gatheringVisualBrief(input: {
+  title: string;
+  prompt?: string;
+  welcome: string;
+}) {
+  const creatorDirection = creatorThemeDirection(input.prompt);
+
+  return [
+    "Translate the user's theme or event into finished invitation imagery; do not display the prompt as text.",
+    `Event title: ${input.title}`,
+    `Guest-facing invite copy: ${input.welcome}`,
+    `Private theme/event direction: ${creatorDirection || defaultCreatorDirection}`,
   ].join("\n");
 }
 
@@ -2398,7 +2566,9 @@ async function storeGeneratedMediaFromUrl(
     !contentType.startsWith("video/") &&
     !contentType.startsWith("audio/")
   ) {
-    throw new Error("Generated media URL did not return an image, video, or audio file.");
+    throw new Error(
+      "Generated media URL did not return an image, video, or audio file.",
+    );
   }
 
   const extension = mediaExtensionFromContentType(contentType);
@@ -2437,7 +2607,8 @@ function audioExtensionFromContentType(contentType: string) {
 }
 
 function mediaExtensionFromContentType(contentType: string) {
-  if (contentType.startsWith("audio/")) return audioExtensionFromContentType(contentType);
+  if (contentType.startsWith("audio/"))
+    return audioExtensionFromContentType(contentType);
   if (contentType.includes("jpeg") || contentType.includes("jpg")) return "jpg";
   if (contentType.includes("png")) return "png";
   if (contentType.includes("webp")) return "webp";
@@ -2535,6 +2706,11 @@ function slugBase(title: string) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 52) || "gathering"
   );
+}
+
+function copiedGatheringTitle(title: string) {
+  const base = title.trim() || defaultGatheringTitle;
+  return `${base.slice(0, 120 - copiedGatheringTitleSuffix.length)}${copiedGatheringTitleSuffix}`;
 }
 
 async function sendGatheringInvites(
@@ -2644,15 +2820,44 @@ async function getPublicGathering(
     recipes: row.gathering.recipeIds
       .map((recipeId) => recipesById.get(recipeId))
       .filter((recipe): recipe is SharedRecipe => Boolean(recipe)),
-    artifacts: artifactRows
-      .map(gatheringArtifactFromRow)
-      .sort(
-        (left, right) =>
-          publishedArtifactOrder.indexOf(left.kind) -
-          publishedArtifactOrder.indexOf(right.kind),
-      ),
+    artifacts: gatheringArtifactsFromRows(artifactRows),
     responses: responses.map(responseFromRow),
   };
+}
+
+async function ownedGatheringFromRow(
+  c: Context<Env>,
+  row: GatheringRow,
+): Promise<OwnedGathering> {
+  return {
+    ...gatheringFromRow(row),
+    artifacts: await listGatheringArtifacts(c, row.id),
+  };
+}
+
+async function listGatheringArtifacts(
+  c: Context<Env>,
+  gatheringId: string,
+): Promise<GatheringArtifact[]> {
+  const rows = await c.var
+    .db!.select()
+    .from(gatheringArtifacts)
+    .where(eq(gatheringArtifacts.gatheringId, gatheringId));
+  return gatheringArtifactsFromRows(rows);
+}
+
+function gatheringArtifactsFromRows(rows: GatheringArtifactRow[]): GatheringArtifact[] {
+  return rows
+    .map(gatheringArtifactFromRow)
+    .sort(
+      (left, right) =>
+        gatheringArtifactSortIndex(left.kind) - gatheringArtifactSortIndex(right.kind),
+    );
+}
+
+function gatheringArtifactSortIndex(kind: GatheringArtifactKind) {
+  const index = publishedArtifactOrder.indexOf(kind);
+  return index === -1 ? publishedArtifactOrder.length : index;
 }
 
 const ownerColumns = {

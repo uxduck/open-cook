@@ -8,14 +8,13 @@ import {
 } from "@open-cook/core";
 import * as v from "valibot";
 import type { ImageAssetStore } from "../assets/imageAssets";
+import { workersAiModels } from "./workersAiModels";
 import { type WorkersAiBinding, workersAiResponseObject } from "./workersAiResponses";
 
 export type RecipeAiBinding = WorkersAiBinding;
 
 export type RecipeAiEnvironment = {
   AI?: RecipeAiBinding;
-  WORKERS_AI_RECIPE_IMAGE_MODEL?: string;
-  WORKERS_AI_RECIPE_REMIX_MODEL?: string;
 };
 
 export type GeneratedAiResult<T> = T & {
@@ -42,8 +41,6 @@ type RecipeAiServiceOptions = {
   assets: ImageAssetStore;
 };
 
-const defaultWorkersRemixModel = "@cf/moonshotai/kimi-k2.6";
-const defaultWorkersImageModel = "@cf/black-forest-labs/flux-2-klein-9b";
 const defaultImageSize = "1024x1024";
 const defaultFlux2ImageSteps = 25;
 const defaultLegacyImageSteps = 4;
@@ -72,7 +69,7 @@ export function createRecipeAiService({
       if (env.AI) {
         return remixRecipeWithWorkersAi(input, {
           ai: env.AI,
-          model: env.WORKERS_AI_RECIPE_REMIX_MODEL ?? defaultWorkersRemixModel,
+          model: workersAiModels.recipeRemix,
         });
       }
 
@@ -87,7 +84,7 @@ export function createRecipeAiService({
         );
       }
 
-      const model = env.WORKERS_AI_RECIPE_IMAGE_MODEL ?? defaultWorkersImageModel;
+      const model = workersAiModels.recipeImage;
       const prompt = input.prompt ?? recipeImagePrompt(input.recipe);
       const result = await env.AI.run(
         model,

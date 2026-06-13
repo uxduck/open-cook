@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm db:migrate:local && wrangler dev --env-file ../../.env $([ -f .env ] && echo --env-file .env) --local --port 8787",
+    "dev": "pnpm db:migrate:local && wrangler dev --env-file ../../.env $([ -f .env ] && echo --env-file .env) --port 8787",
     "build": "tsc --build",
     "deploy": "pnpm run deploy:production",
     "deploy:production": "pnpm run build && pnpm run db:migrate:remote && wrangler deploy --minify --env=production",

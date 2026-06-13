@@ -83,7 +83,7 @@ export const billingApp = new Hono<Env>()
     "/checkout",
     describeRoute({
       description:
-        "Create a Paid-hosted checkout session for a plan upgrade or credit pack. Returns the hosted URL to redirect to.",
+        "Create a Paid-hosted checkout session for a plan upgrade or configured billing add-on. Returns the hosted URL to redirect to.",
       responses: {
         200: { description: "Checkout session created." },
         503: { description: "Billing is not configured." },
@@ -268,7 +268,7 @@ export const billingWebhookApp = new Hono<Env>().post("/", async (c) => {
     event.name === "billing-checkout-expired" ||
     event.name === "billing-payment-failed";
 
-  // Only plan upgrades flip `plan`; credit packs are provisioned by Paid itself.
+  // Only plan upgrades flip `plan`; add-on credit grants are provisioned by Paid.
   if (completed && event.target === "pro") {
     await c.var.db
       .update(userTable)

@@ -103,7 +103,7 @@ describe("importRecipeFromWebsite", () => {
     );
 
     expect(ai.run).toHaveBeenCalledWith(
-      "@cf/moonshotai/kimi-k2.6",
+      "@cf/zai-org/glm-4.7-flash",
       expect.objectContaining({
         max_completion_tokens: 1800,
         response_format: expect.objectContaining({ type: "json_schema" }),
@@ -121,7 +121,7 @@ describe("importRecipeFromWebsite", () => {
       source: {
         raw: {
           extraction: "workers-ai",
-          model: "@cf/moonshotai/kimi-k2.6",
+          model: "@cf/zai-org/glm-4.7-flash",
         },
       },
     });

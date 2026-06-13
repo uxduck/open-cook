@@ -14,6 +14,8 @@ function Home() {
     <main className="min-h-screen">
       <MarketingPage
         onAuthIntent={openAuth}
+        onImportRecipes={() => navigate({ to: "/app/import" })}
+        onOpenHome={() => navigate({ to: "/" })}
         onOpenApp={() => navigate({ to: "/app" })}
         session={session}
       />

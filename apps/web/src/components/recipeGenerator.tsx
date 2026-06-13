@@ -7,11 +7,9 @@ import {
   Loader2,
   Mail,
   Mic,
-  Search,
   Send,
   Sparkles,
   Square,
-  UserPlus,
   Users,
   Utensils,
   Video,
@@ -19,15 +17,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import {
-  type ReactNode,
-  type UIEvent,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, type UIEvent, useEffect, useMemo, useState } from "react";
 import {
   type GatheringArtifactId,
   type GatheringArtifactJob,
@@ -37,15 +27,26 @@ import {
 } from "../api";
 import { displayImageUrl } from "../imageDisplayUrl";
 import { errorMessage, recipeImagesOf } from "../lib/recipe";
-import { useDictation } from "../lib/useDictation";
-import { Button } from "../ui";
+import { useVoiceInput } from "../lib/useVoiceInput";
+import {
+  Button,
+  focusedPageContainerClassName,
+  workspaceScrollPageClassName,
+} from "../ui";
+import { VoiceSearchInput } from "./VoiceSearchInput";
 
 export type GatheringBuildRequest = {
   dietary: string;
   guestQuestion: string;
-  inviteeEmails: string;
   prompt: string;
   title: string;
+};
+
+export const gatheringBuildPlaceholders: GatheringBuildRequest = {
+  dietary: "vegan, gluten-free, nut allergy...",
+  guestQuestion: "Tell us anything we should avoid or adapt.",
+  prompt: "Halloween dinner, dragon banquet, garden birthday lunch...",
+  title: "OpenCook gathering",
 };
 
 type GenerationArtifact = {
@@ -66,9 +67,8 @@ type GenerationArtifactStatus =
 
 export const defaultGatheringBuildRequest: GatheringBuildRequest = {
   dietary: "",
-  guestQuestion: "Tell us anything we should avoid or adapt.",
-  inviteeEmails: "",
-  prompt: "Make it warm, simple, and easy to share.",
+  guestQuestion: "",
+  prompt: "",
   title: "",
 };
 
@@ -83,6 +83,34 @@ export function gatheringRecipePickerMatches(recipes: Recipe[], query: string) {
         recipeSearchText(item).toLowerCase().includes(normalizedQuery),
       )
     : recipes;
+}
+
+export function gatheringRecipePickerSelectedFirst(
+  recipes: Recipe[],
+  selectedRecipeIds: string[],
+) {
+  if (selectedRecipeIds.length === 0) {
+    return recipes;
+  }
+
+  const selectedOrderById = new Map(selectedRecipeIds.map((id, index) => [id, index]));
+  const selectedRecipes: Recipe[] = [];
+  const unselectedRecipes: Recipe[] = [];
+
+  for (const recipe of recipes) {
+    if (selectedOrderById.has(recipe.id)) {
+      selectedRecipes.push(recipe);
+    } else {
+      unselectedRecipes.push(recipe);
+    }
+  }
+
+  selectedRecipes.sort(
+    (first, second) =>
+      selectedOrderById.get(first.id)! - selectedOrderById.get(second.id)!,
+  );
+
+  return [...selectedRecipes, ...unselectedRecipes];
 }
 
 export function nextGatheringRecipePickerCount(
@@ -115,6 +143,32 @@ const dietaryPresets = [
   "no pork",
   "kid-friendly portions",
 ];
+
+const gatheringTitleDietaryPatterns = [
+  { label: "vegan", pattern: /\bvegan\b/i },
+  { label: "vegetarian", pattern: /\bvegetarian\b/i },
+  { label: "gluten-free", pattern: /\bgluten[-\s]?free\b/i },
+  { label: "dairy-free", pattern: /\bdairy[-\s]?free\b/i },
+  { label: "nut-free", pattern: /\bnut[-\s]?free\b|\bnut allergy\b/i },
+  { label: "no pork", pattern: /\bno pork\b/i },
+  { label: "halal", pattern: /\bhalal\b/i },
+  { label: "kosher", pattern: /\bkosher\b/i },
+];
+
+export function gatheringDraftAssistFieldValue(current: string, generated: string) {
+  return current.trim() ? current : generated.trim();
+}
+
+export function gatheringDraftAssistPrompt(currentPrompt: string, title: string) {
+  return currentPrompt.trim() ? currentPrompt : title.trim();
+}
+
+export function gatheringTitleDietaryHints(title: string) {
+  const hints = gatheringTitleDietaryPatterns
+    .filter(({ pattern }) => pattern.test(title))
+    .map(({ label }) => label);
+  return [...new Set(hints)].join(", ");
+}
 
 const generationArtifacts: GenerationArtifact[] = [
   {
@@ -173,35 +227,39 @@ export function GatheringPage({
   const [prompt, setPrompt] = useState(initialRequest.prompt);
   const [dietary, setDietary] = useState(initialRequest.dietary);
   const [guestQuestion, setGuestQuestion] = useState(initialRequest.guestQuestion);
-  const [inviteeEmails, setInviteeEmails] = useState(initialRequest.inviteeEmails);
   const [visibleRecipeCount, setVisibleRecipeCount] = useState(
     gatheringRecipePickerPageSize,
   );
-  const dictation = useDictation();
-  const dictationBaseRef = useRef("");
-  const isDictating =
-    dictation.status === "listening" || dictation.status === "connecting";
+  const { dictation, isDictating, toggleDictation } = useVoiceInput({
+    onValueChange: setPrompt,
+    value: prompt,
+  });
+  const dictationBusy =
+    dictation.status === "connecting" || dictation.status === "finishing";
+  const dictationStatusText =
+    dictation.status === "connecting"
+      ? "Connecting"
+      : dictation.status === "finishing"
+        ? "Finishing"
+        : "Listening";
 
   useEffect(() => {
     setVisibleRecipeCount(gatheringRecipePickerPageSize);
   }, [query, recipes]);
-
-  useEffect(() => {
-    if (dictation.status === "listening" || dictation.status === "connecting") {
-      const base = dictationBaseRef.current;
-      setPrompt(base ? `${base} ${dictation.liveText}`.trim() : dictation.liveText);
-    }
-  }, [dictation.liveText, dictation.status]);
 
   const selectedKeySet = useMemo(() => new Set(selectedRecipeIds), [selectedRecipeIds]);
   const matchingRecipes = useMemo(
     () => gatheringRecipePickerMatches(recipes, query),
     [query, recipes],
   );
+  const orderedMatchingRecipes = useMemo(
+    () => gatheringRecipePickerSelectedFirst(matchingRecipes, selectedRecipeIds),
+    [matchingRecipes, selectedRecipeIds],
+  );
   const filteredRecipes = useMemo(() => {
-    return matchingRecipes.slice(0, visibleRecipeCount);
-  }, [matchingRecipes, visibleRecipeCount]);
-  const hasMoreRecipes = filteredRecipes.length < matchingRecipes.length;
+    return orderedMatchingRecipes.slice(0, visibleRecipeCount);
+  }, [orderedMatchingRecipes, visibleRecipeCount]);
+  const hasMoreRecipes = filteredRecipes.length < orderedMatchingRecipes.length;
   const canMakePage = selectedRecipes.length > 0;
   const selectedRecipeLabel = `${selectedRecipes.length} recipe${
     selectedRecipes.length === 1 ? "" : "s"
@@ -215,19 +273,9 @@ export function GatheringPage({
     setDietary((current) => (current.trim() ? `${current.trim()}, ${value}` : value));
   }
 
-  function toggleMic() {
-    if (isDictating) {
-      dictation.stop();
-      return;
-    }
-    dictationBaseRef.current = prompt;
-    dictation.reset();
-    void dictation.start();
-  }
-
   function showMoreRecipes() {
     setVisibleRecipeCount((current) =>
-      nextGatheringRecipePickerCount(current, matchingRecipes.length),
+      nextGatheringRecipePickerCount(current, orderedMatchingRecipes.length),
     );
   }
 
@@ -248,16 +296,15 @@ export function GatheringPage({
 
     onGenerate({
       dietary: dietary.trim(),
-      guestQuestion: guestQuestion.trim() || defaultGatheringBuildRequest.guestQuestion,
-      inviteeEmails: inviteeEmails.trim(),
-      prompt: prompt.trim() || defaultGatheringBuildRequest.prompt,
+      guestQuestion: guestQuestion.trim() || gatheringBuildPlaceholders.guestQuestion,
+      prompt: prompt.trim(),
       title: title.trim(),
     });
   }
 
   return (
-    <section className="col-[1/-1] overflow-auto bg-(--color-canvas) max-[980px]:col-[1]">
-      <div className="mx-auto grid w-full max-w-[820px] gap-5 px-5 py-6 md:px-8">
+    <section className={`${workspaceScrollPageClassName} bg-(--color-canvas)`}>
+      <div className={`${focusedPageContainerClassName} grid gap-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button onClick={onBackToRecipes} size="sm" variant="ghost">
             <ArrowLeft size={16} />
@@ -300,7 +347,7 @@ export function GatheringPage({
             </h2>
             <p className="m-0 max-w-[54ch] text-[15px] font-semibold leading-relaxed text-(--color-fog)">
               Choose the recipes, add the guest notes, then review the page before you
-              publish or send invitations.
+              publish. Add invitees from the share page once the gathering is live.
             </p>
           </div>
         </header>
@@ -329,18 +376,19 @@ export function GatheringPage({
             </p>
           )}
 
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
-              size={15}
-            />
-            <input
-              className="min-h-12 w-full rounded-xl border-2 border-(--color-line) bg-(--color-paper) pr-3 pl-9 text-[15px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search recipes"
-              value={query}
-            />
-          </div>
+          <VoiceSearchInput
+            aria-label="Search recipes"
+            containerClassName="relative"
+            inputClassName="min-h-12 w-full rounded-xl border-2 border-(--color-line) bg-(--color-paper) pr-12 pl-9 text-[15px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+            micButtonClassName="absolute top-1/2 right-2 grid size-8 -translate-y-1/2 place-items-center rounded-lg border-2 border-(--color-ink) bg-(--color-panel) text-(--color-ink) transition hover:bg-(--color-peach)"
+            activeMicButtonClassName="absolute top-1/2 right-2 grid size-8 -translate-y-1/2 place-items-center rounded-lg border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
+            onValueChange={setQuery}
+            placeholder="Search recipes"
+            searchIconClassName="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
+            searchIconSize={15}
+            statusClassName="m-0 text-[11.5px] font-black leading-snug text-(--color-tomato-dark)"
+            value={query}
+          />
 
           <div
             className="grid max-h-[460px] gap-2 overflow-auto pr-1"
@@ -399,14 +447,15 @@ export function GatheringPage({
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-(--color-line) bg-(--color-panel) p-4 md:p-5">
-          <StepHeader icon={<Sparkles size={15} />} kicker="2" title="Set the tone" />
+          <StepHeader icon={<Sparkles size={15} />} kicker="2" title="Set the theme" />
 
           <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
             Page title
-            <input
-              className="min-h-11 rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+            <textarea
+              className="min-h-11 resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) break-words whitespace-pre-wrap [overflow-wrap:anywhere] outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Saturday supper, birthday lunch..."
+              placeholder={gatheringBuildPlaceholders.title}
+              rows={1}
               value={title}
             />
           </label>
@@ -425,10 +474,14 @@ export function GatheringPage({
           </div>
 
           <div className="relative">
+            <label className="sr-only" htmlFor="gathering-theme-direction">
+              Theme and event direction
+            </label>
             <textarea
-              className="min-h-[132px] w-full resize-y rounded-xl border-2 border-(--color-line) bg-(--color-paper) px-3 py-3 pr-12 text-[15px] leading-relaxed text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              id="gathering-theme-direction"
+              className="min-h-[132px] w-full resize-y rounded-xl border-2 border-(--color-line) bg-(--color-paper) px-3 py-3 pr-12 text-[15px] leading-relaxed text-(--color-ink) break-words whitespace-pre-wrap [overflow-wrap:anywhere] outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Example: make it playful for children, with a dragon theme."
+              placeholder={gatheringBuildPlaceholders.prompt}
               value={prompt}
             />
             <button
@@ -438,10 +491,10 @@ export function GatheringPage({
                   ? "absolute top-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
                   : "absolute top-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg border-2 border-(--color-ink) bg-(--color-panel) text-(--color-ink) hover:bg-(--color-peach)"
               }
-              onClick={toggleMic}
+              onClick={toggleDictation}
               type="button"
             >
-              {dictation.status === "connecting" ? (
+              {dictationBusy ? (
                 <Loader2 className="animate-spin" size={16} />
               ) : isDictating ? (
                 <Square fill="currentColor" size={14} />
@@ -469,7 +522,7 @@ export function GatheringPage({
                     <span className="h-2.5 w-0.5 animate-pulse bg-(--color-tomato) [animation-delay:240ms]" />
                     <span className="h-4 w-0.5 animate-pulse bg-(--color-tomato) [animation-delay:360ms]" />
                   </span>
-                  {dictation.status === "connecting" ? "Connecting" : "Listening"}
+                  {dictationStatusText}
                 </>
               )}
             </div>
@@ -481,10 +534,11 @@ export function GatheringPage({
 
           <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
             Dietary needs you already know
-            <input
-              className="min-h-11 rounded-lg border border-(--color-line) bg-(--color-paper) px-3 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+            <textarea
+              className="min-h-11 resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) break-words whitespace-pre-wrap [overflow-wrap:anywhere] outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
               onChange={(event) => setDietary(event.target.value)}
-              placeholder="vegan, gluten-free, nut allergy..."
+              placeholder={gatheringBuildPlaceholders.dietary}
+              rows={1}
               value={dietary}
             />
           </label>
@@ -505,19 +559,10 @@ export function GatheringPage({
           <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
             Question for guests
             <textarea
-              className="min-h-[92px] resize-none rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+              className="min-h-[92px] resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) break-words whitespace-pre-wrap [overflow-wrap:anywhere] outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
               onChange={(event) => setGuestQuestion(event.target.value)}
+              placeholder={gatheringBuildPlaceholders.guestQuestion}
               value={guestQuestion}
-            />
-          </label>
-
-          <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
-            Invitee emails
-            <textarea
-              className="min-h-[108px] resize-y rounded-lg border border-(--color-line) bg-(--color-paper) px-3 py-2 text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-              onChange={(event) => setInviteeEmails(event.target.value)}
-              placeholder="name@example.com, friend@example.com"
-              value={inviteeEmails}
             />
           </label>
         </section>
@@ -579,9 +624,9 @@ export function GatheringGenerationPage({
   const [title, setTitle] = useState(request.title);
   const [welcome, setWelcome] = useState("");
   const [guestQuestion, setGuestQuestion] = useState(request.guestQuestion);
-  const [inviteeEmails, setInviteeEmails] = useState(request.inviteeEmails);
   const [statusMessage, setStatusMessage] = useState("");
   const [publishedUrl, setPublishedUrl] = useState("");
+  const [sharePageUrl, setSharePageUrl] = useState("");
   const [draftLoading, setDraftLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const activeArtifact =
@@ -603,14 +648,6 @@ export function GatheringGenerationPage({
         generationArtifacts.length - 1,
       )
     ] ?? "w-1/5";
-  const inviteeEmailList = useMemo(
-    () => parseInviteeEmails(inviteeEmails),
-    [inviteeEmails],
-  );
-  const invalidEmails = useMemo(
-    () => inviteeEmailList.filter((email) => !looksLikeEmail(email)),
-    [inviteeEmailList],
-  );
   const artifactJobsById = useMemo(
     () =>
       new Map<GatheringArtifactId, GatheringArtifactJob>(
@@ -623,7 +660,6 @@ export function GatheringGenerationPage({
     Boolean(welcome.trim()) &&
     Boolean(guestQuestion.trim()) &&
     selectedRecipes.length > 0 &&
-    invalidEmails.length === 0 &&
     !publishing &&
     !draftLoading &&
     !publishedUrl;
@@ -638,11 +674,11 @@ export function GatheringGenerationPage({
     setDraft(null);
     setDraftLoading(true);
     setPublishedUrl("");
+    setSharePageUrl("");
     setStatusMessage("");
     setTitle(request.title);
     setWelcome("");
     setGuestQuestion(request.guestQuestion);
-    setInviteeEmails(request.inviteeEmails);
 
     const progressTimer = window.setInterval(() => {
       setActiveIndex((current) => {
@@ -682,7 +718,6 @@ export function GatheringGenerationPage({
     onGenerateDraft,
     request.dietary,
     request.guestQuestion,
-    request.inviteeEmails,
     request.prompt,
     request.title,
     selectedRecipes,
@@ -690,32 +725,25 @@ export function GatheringGenerationPage({
 
   async function publish() {
     if (!canPublish) {
-      if (invalidEmails.length) {
-        setStatusMessage(`Check ${invalidEmails[0]}.`);
-      }
       return;
     }
 
     setPublishing(true);
-    setStatusMessage("Publishing and starting AI generation");
+    setStatusMessage("Publishing gathering");
     try {
       const result = await onPublish({
         dietary: request.dietary || undefined,
         guestQuestion: guestQuestion.trim(),
-        inviteeEmails: inviteeEmailList,
         prompt: request.prompt || undefined,
         recipeIds: selectedRecipes.map((recipe) => recipe.id),
         title: title.trim(),
         welcome: welcome.trim(),
       });
       setPublishedUrl(result.url);
-      setStatusMessage(
-        inviteeEmailList.length
-          ? `Published and sent to ${inviteeEmailList.length} invitee${
-              inviteeEmailList.length === 1 ? "" : "s"
-            }.`
-          : "Published.",
+      setSharePageUrl(
+        `/app/gatherings/${encodeURIComponent(result.gathering.id)}/share`,
       );
+      setStatusMessage("Published. Add invitees from the share page.");
     } catch (error) {
       setStatusMessage(`Publishing failed: ${errorMessage(error)}`);
     } finally {
@@ -730,8 +758,8 @@ export function GatheringGenerationPage({
   }
 
   return (
-    <section className="col-[1/-1] overflow-auto bg-(--color-canvas) max-[980px]:col-[1]">
-      <div className="mx-auto grid w-full max-w-[780px] gap-5 px-5 py-6 md:px-8">
+    <section className={`${workspaceScrollPageClassName} bg-(--color-canvas)`}>
+      <div className={`${focusedPageContainerClassName} grid gap-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button onClick={onBackToSetup} size="sm" variant="ghost">
             <ArrowLeft size={16} />
@@ -763,7 +791,7 @@ export function GatheringGenerationPage({
               {publishedUrl
                 ? "Everyone has the same gathering page."
                 : complete
-                  ? "Edit the welcome before publishing and sending invitations."
+                  ? "Edit the welcome before publishing. Invitees are added from the share page after the gathering is live."
                   : activeArtifact.description}
             </p>
           </div>
@@ -825,16 +853,10 @@ export function GatheringGenerationPage({
 
           {complete ? (
             <div className="grid gap-4 rounded-2xl border-2 border-(--color-ink) bg-(--color-panel) p-4 shadow-[4px_4px_0_0_var(--color-ink)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) px-3 py-1 text-[12px] font-extrabold uppercase text-(--color-sage)">
-                  <Sparkles size={14} />
-                  {draft?.provider.provider === "workers-ai" ? "AI draft" : "Draft"}
-                </span>
-                <span className="text-[12px] font-bold text-(--color-fog)">
-                  {inviteeEmailList.length} invitee
-                  {inviteeEmailList.length === 1 ? "" : "s"}
-                </span>
-              </div>
+              <span className="inline-flex w-fit items-center gap-2 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) px-3 py-1 text-[12px] font-extrabold uppercase text-(--color-sage)">
+                <Sparkles size={14} />
+                {draft?.provider.provider === "workers-ai" ? "AI draft" : "Draft"}
+              </span>
 
               <label className="grid gap-2 text-[13px] font-extrabold text-(--color-ink)">
                 Page title
@@ -863,18 +885,6 @@ export function GatheringGenerationPage({
                 />
               </label>
 
-              <InviteeEmailEditor
-                invalidEmails={invalidEmails}
-                onChange={setInviteeEmails}
-                value={inviteeEmails}
-              />
-
-              {invalidEmails.length ? (
-                <p className="m-0 rounded-lg bg-[color-mix(in_oklch,var(--color-tomato)_10%,white)] px-3 py-2 text-[12.5px] font-bold text-(--color-tomato-dark)">
-                  Check {invalidEmails[0]}.
-                </p>
-              ) : null}
-
               {publishedUrl ? (
                 <div className="grid gap-2 rounded-xl border border-(--color-line) bg-(--color-paper) p-3">
                   <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
@@ -891,6 +901,20 @@ export function GatheringGenerationPage({
                       Copy
                     </Button>
                   </div>
+                  {sharePageUrl ? (
+                    <div className="flex flex-wrap justify-end gap-2 border-t border-(--color-line) pt-2">
+                      <Button
+                        onClick={() => {
+                          window.location.href = sharePageUrl;
+                        }}
+                        size="sm"
+                        variant="primary"
+                      >
+                        <Mail size={15} />
+                        Add invitees
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -937,10 +961,10 @@ export function GatheringGenerationPage({
 
           <div className="grid gap-2 rounded-2xl border border-(--color-line) bg-(--color-paper) p-4">
             <span className="text-[12px] font-extrabold uppercase text-(--color-fog)">
-              Note for guests
+              Theme direction
             </span>
             <p className="m-0 text-[14px] font-semibold leading-relaxed text-(--color-ink)">
-              {request.prompt || defaultGatheringBuildRequest.prompt}
+              {request.prompt || "OpenCook will keep the page warm and easy to share."}
             </p>
             {request.dietary ? (
               <p className="m-0 rounded-lg bg-(--color-sage-soft) px-2.5 py-2 text-[12.5px] font-bold leading-relaxed text-(--color-sage)">
@@ -949,158 +973,12 @@ export function GatheringGenerationPage({
             ) : null}
             <p className="m-0 text-[13px] font-semibold leading-relaxed text-(--color-fog)">
               Guests will be asked:{" "}
-              {request.guestQuestion || defaultGatheringBuildRequest.guestQuestion}
+              {request.guestQuestion || gatheringBuildPlaceholders.guestQuestion}
             </p>
           </div>
         </section>
       </div>
     </section>
-  );
-}
-
-function parseInviteeEmails(value: string) {
-  return [
-    ...new Set(
-      value
-        .split(/[\s,;]+/)
-        .map((email) => email.trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-function looksLikeEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function formatInviteeEmails(emails: string[]) {
-  return parseInviteeEmails(emails.join("\n")).join("\n");
-}
-
-function InviteeEmailEditor({
-  invalidEmails,
-  onChange,
-  value,
-}: {
-  invalidEmails: string[];
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  const inputId = useId();
-  const [draftEmail, setDraftEmail] = useState("");
-  const emails = useMemo(() => parseInviteeEmails(value), [value]);
-  const invalidEmailSet = useMemo(() => new Set(invalidEmails), [invalidEmails]);
-  const hasInvalidEmail = invalidEmails.length > 0;
-
-  function commitEmails(rawValue = draftEmail) {
-    const nextEmails = parseInviteeEmails(rawValue);
-    if (nextEmails.length === 0) return;
-
-    onChange(formatInviteeEmails([...emails, ...nextEmails]));
-    setDraftEmail("");
-  }
-
-  function removeEmail(email: string) {
-    onChange(formatInviteeEmails(emails.filter((item) => item !== email)));
-  }
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <label
-          className="text-[13px] font-extrabold text-(--color-ink)"
-          htmlFor={inputId}
-        >
-          Invitee emails
-        </label>
-        <span
-          className={
-            hasInvalidEmail
-              ? "rounded-full border border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] px-2 py-0.5 text-[11.5px] font-extrabold text-(--color-tomato-dark)"
-              : "rounded-full border border-(--color-line) bg-(--color-paper) px-2 py-0.5 text-[11.5px] font-extrabold text-(--color-fog)"
-          }
-        >
-          {emails.length} invitee{emails.length === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      <div
-        className={
-          hasInvalidEmail
-            ? "rounded-lg border-2 border-(--color-tomato) bg-(--color-paper) p-2"
-            : "rounded-lg border border-(--color-line) bg-(--color-paper) p-2 focus-within:border-(--color-ink)"
-        }
-      >
-        <div className="flex min-h-[94px] flex-wrap content-start items-start gap-2">
-          {emails.map((email) => {
-            const invalid = invalidEmailSet.has(email);
-            return (
-              <span
-                className={
-                  invalid
-                    ? "inline-flex max-w-full items-center gap-1.5 rounded-full border border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_8%,white)] py-1 pr-1 pl-2 text-[12.5px] font-extrabold text-(--color-tomato-dark)"
-                    : "inline-flex max-w-full items-center gap-1.5 rounded-full border border-(--color-sage-line) bg-(--color-sage-soft) py-1 pr-1 pl-2 text-[12.5px] font-extrabold text-(--color-sage)"
-                }
-                key={email}
-              >
-                <Mail className="shrink-0" size={13} />
-                <span className="max-w-[230px] truncate">{email}</span>
-                <button
-                  aria-label={`Remove ${email}`}
-                  className={
-                    invalid
-                      ? "grid size-6 shrink-0 place-items-center rounded-full text-(--color-tomato-dark) hover:bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)]"
-                      : "grid size-6 shrink-0 place-items-center rounded-full text-(--color-sage) hover:bg-(--color-panel)"
-                  }
-                  onClick={() => removeEmail(email)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  title="Remove invitee"
-                  type="button"
-                >
-                  <X size={13} strokeWidth={3} />
-                </button>
-              </span>
-            );
-          })}
-
-          <div className="flex min-h-10 min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-dashed border-(--color-line) bg-(--color-panel) px-2">
-            <Mail className="shrink-0 text-(--color-fog)" size={15} />
-            <input
-              className="min-h-9 min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-(--color-ink) outline-none placeholder:text-(--color-fog)"
-              id={inputId}
-              onBlur={() => commitEmails()}
-              onChange={(event) => setDraftEmail(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === "," || event.key === ";") {
-                  event.preventDefault();
-                  commitEmails();
-                }
-              }}
-              onPaste={(event) => {
-                const pastedText = event.clipboardData.getData("text");
-                if (!pastedText.trim()) return;
-
-                event.preventDefault();
-                commitEmails(`${draftEmail} ${pastedText}`);
-              }}
-              placeholder="name@example.com"
-              value={draftEmail}
-            />
-            <button
-              aria-label="Add invitee"
-              className="grid size-8 shrink-0 place-items-center rounded-lg border border-(--color-line) bg-(--color-paper) text-(--color-ink) transition enabled:hover:border-(--color-ink) enabled:hover:bg-(--color-peach) disabled:opacity-45"
-              disabled={!draftEmail.trim()}
-              onClick={() => commitEmails()}
-              onMouseDown={(event) => event.preventDefault()}
-              title="Add invitee"
-              type="button"
-            >
-              <UserPlus size={15} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 

@@ -19,6 +19,12 @@ describe("displayImageUrl", () => {
     );
   });
 
+  it("uses the local API route during dev SSR", () => {
+    expect(displayImageUrl("https://images.open-cook.com/aubergine.webp")).toBe(
+      "/api/assets/images/aubergine.webp",
+    );
+  });
+
   it("keeps third-party image URLs unchanged in dev", () => {
     expect(displayImageUrl("https://example.com/recipe.webp", localLocation)).toBe(
       "https://example.com/recipe.webp",

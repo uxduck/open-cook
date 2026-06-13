@@ -17,7 +17,6 @@ import {
   Download,
   ExternalLink,
   Globe2,
-  Image as ImageIcon,
   Link2,
   ListChecks,
   LockKeyhole,
@@ -26,7 +25,6 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
-  Search,
   Share2,
   Trash2,
   Users,
@@ -45,10 +43,16 @@ import {
   sharedRecipeKey,
   recipeTimeSummary,
 } from "../lib/recipe";
-import { Button } from "../ui";
+import {
+  Button,
+  workspacePageInnerClassName,
+  workspaceScrollPageClassName,
+} from "../ui";
 import { RecipeEditor, SharingSection } from "./editor";
 import { RecipeSectionTabs, TopBar } from "./workspace";
 import { BrowseRecipeView } from "./recipeViews";
+import { VoiceSearchInput } from "./VoiceSearchInput";
+import { VirtualGrid } from "./virtualized";
 
 const cardClassName =
   "rounded-2xl border-2 border-(--color-ink) bg-[linear-gradient(180deg,#fffef9,#fff8ec)] shadow-[5px_5px_0_0_var(--color-ink)]";
@@ -105,12 +109,10 @@ function hostnameOf(url?: string) {
 // The drop-down of secondary + destructive actions that replaces the lone
 // red trash icon. Delete is two-step so it can sit a click away without risk.
 export function RecipeActionsMenu({
-  onMirrorImages,
   onStructure,
   onDelete,
   recipeId,
 }: {
-  onMirrorImages: () => void | Promise<void>;
   onStructure: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   recipeId: string;
@@ -163,17 +165,6 @@ export function RecipeActionsMenu({
           >
             <Wand2 className="shrink-0 text-(--color-fog)" size={16} />
             Re-structure recipe
-          </button>
-          <button
-            className={itemClass}
-            onClick={() => {
-              setOpen(false);
-              void onMirrorImages();
-            }}
-            type="button"
-          >
-            <ImageIcon className="shrink-0 text-(--color-fog)" size={16} />
-            Mirror images
           </button>
           {recipeId ? (
             <a
@@ -780,12 +771,16 @@ export function RecipeReadView({ draft }: { draft: Recipe }) {
 
 function FullWidthPage({ children }: { children: React.ReactNode }) {
   return (
-    <section className="relative col-[1/-1] overflow-auto bg-[radial-gradient(circle_at_16%_9%,rgba(255,196,86,0.18),transparent_18rem),radial-gradient(circle_at_88%_16%,rgba(47,104,75,0.12),transparent_20rem),linear-gradient(180deg,#fff8e7_0%,#f6f0e4_44%,#edf4e7_100%)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(color-mix(in_oklch,var(--color-line)_64%,transparent)_1px,transparent_1px)] before:[background-size:18px_18px] before:opacity-45">
-      <div className="relative z-10 mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-5 py-6 md:px-8">
-        {children}
-      </div>
+    <section
+      className={`${workspaceScrollPageClassName} bg-[radial-gradient(circle_at_16%_9%,rgba(255,196,86,0.18),transparent_18rem),radial-gradient(circle_at_88%_16%,rgba(47,104,75,0.12),transparent_20rem),linear-gradient(180deg,#fff8e7_0%,#f6f0e4_44%,#edf4e7_100%)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(color-mix(in_oklch,var(--color-line)_64%,transparent)_1px,transparent_1px)] before:[background-size:18px_18px] before:opacity-45`}
+    >
+      <div className={workspacePageInnerClassName}>{children}</div>
     </section>
   );
+}
+
+function gatheringMenuTitle(gathering: Gathering) {
+  return gathering.title.trim() || "Untitled gathering";
 }
 
 function RecipeGatheringMenu({
@@ -818,7 +813,7 @@ function RecipeGatheringMenu({
   const normalizedGatheringQuery = gatheringQuery.trim().toLowerCase();
   const visibleGatherings = normalizedGatheringQuery
     ? gatherings.filter((gathering) =>
-        `${gathering.title} ${gathering.status}`
+        `${gatheringMenuTitle(gathering)} ${gathering.status}`
           .toLowerCase()
           .includes(normalizedGatheringQuery),
       )
@@ -898,21 +893,21 @@ function RecipeGatheringMenu({
             </p>
           ) : gatherings.length ? (
             <>
-              <div className="relative">
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
-                  size={15}
-                />
-                <input
-                  aria-label="Search gatherings"
-                  className="min-h-10 w-full rounded-xl border border-(--color-line) bg-(--color-paper) pr-3 pl-9 text-[13px] font-bold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
-                  onChange={(event) => setGatheringQuery(event.target.value)}
-                  placeholder="Search gatherings"
-                  ref={searchInputRef}
-                  value={gatheringQuery}
-                />
-              </div>
+              <VoiceSearchInput
+                aria-label="Search gatherings"
+                containerClassName="relative"
+                inputClassName="min-h-10 w-full rounded-xl border border-(--color-line) bg-(--color-paper) pr-11 pl-9 text-[13px] font-bold text-(--color-ink) outline-none placeholder:text-(--color-fog) focus:border-(--color-ink)"
+                micButtonClassName="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 place-items-center rounded-lg border border-(--color-line) bg-(--color-panel) text-(--color-ink) transition hover:border-(--color-ink)"
+                activeMicButtonClassName="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 place-items-center rounded-lg border border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
+                micIconSize={14}
+                onValueChange={setGatheringQuery}
+                placeholder="Search gatherings"
+                ref={searchInputRef}
+                searchIconClassName="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-(--color-fog)"
+                searchIconSize={15}
+                statusClassName="m-0 text-[11.5px] font-black leading-snug text-(--color-tomato-dark)"
+                value={gatheringQuery}
+              />
               {visibleGatherings.length ? (
                 <div className="grid max-h-[320px] gap-2 overflow-auto pr-1">
                   {visibleGatherings.map((gathering) => {
@@ -940,7 +935,7 @@ function RecipeGatheringMenu({
                           </span>
                           <span className="grid min-w-0 gap-1">
                             <span className="truncate text-[13px] font-extrabold text-(--color-ink)">
-                              {gathering.title}
+                              {gatheringMenuTitle(gathering)}
                             </span>
                             <span className="text-[11px] font-bold capitalize text-(--color-fog)">
                               {gathering.status}
@@ -948,7 +943,7 @@ function RecipeGatheringMenu({
                           </span>
                         </button>
                         <button
-                          aria-label={`Open ${gathering.title}`}
+                          aria-label={`Open ${gatheringMenuTitle(gathering)}`}
                           className="grid size-9 place-items-center rounded-lg border border-(--color-line) bg-(--color-panel) text-(--color-ink) hover:border-(--color-ink)"
                           onClick={() => {
                             setOpen(false);
@@ -991,7 +986,6 @@ export function RecipePage({
   onChange,
   onCreateGatheringForRecipe,
   onDelete,
-  onMirrorImages,
   onOpenGathering,
   onSetMode,
   onStructure,
@@ -1009,7 +1003,6 @@ export function RecipePage({
   onChange: (recipe: Recipe) => void;
   onCreateGatheringForRecipe: (recipe: Recipe) => void | Promise<void>;
   onDelete: () => Promise<void>;
-  onMirrorImages: () => Promise<void>;
   onOpenGathering: (gatheringId: string) => void;
   onSetMode: (mode: "view" | "edit") => void;
   onStructure: () => Promise<void>;
@@ -1080,7 +1073,6 @@ export function RecipePage({
           ) : null}
           <RecipeActionsMenu
             onDelete={onDelete}
-            onMirrorImages={onMirrorImages}
             onStructure={onStructure}
             recipeId={recipeId}
           />
@@ -1090,14 +1082,7 @@ export function RecipePage({
       {mode === "view" ? (
         <RecipeReadView draft={draft} />
       ) : (
-        <RecipeEditor
-          draft={draft}
-          onChange={onChange}
-          onStructure={onStructure}
-          onVisibilityChange={onVisibilityChange}
-          ownerUserId={ownerUserId}
-          persistedVisibility={persistedVisibility}
-        />
+        <RecipeEditor draft={draft} onChange={onChange} onStructure={onStructure} />
       )}
     </FullWidthPage>
   );
@@ -1238,15 +1223,105 @@ function RecipeLibrarySkeleton({ section }: { section: RecipeSection }) {
   );
 }
 
+function OwnedRecipeCard({
+  onOpen,
+  recipe,
+}: {
+  onOpen: (id: string) => void;
+  recipe: Recipe;
+}) {
+  return (
+    <button
+      className={`${cardClassName} relative flex h-full w-full flex-col items-stretch gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-tomato) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[-0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-tomato)]`}
+      onClick={() => onOpen(recipe.id)}
+      type="button"
+    >
+      <div className="relative aspect-[16/10] w-full border-b-2 border-(--color-ink) bg-(--color-soft)">
+        <CardCover imageUrl={recipe.imageUrl} />
+      </div>
+      <div className="flex flex-1 flex-col gap-1.5 p-3.5">
+        <div className="flex items-start justify-between gap-2">
+          <strong className="text-[15px] leading-tight text-(--color-ink)">
+            {recipe.title}
+          </strong>
+          <VisibilityBadge visibility={recipe.visibility} />
+        </div>
+        <span className="line-clamp-2 text-[13px] leading-snug text-(--color-fog)">
+          {recipe.description || "Local OpenCook recipe"}
+        </span>
+        <span className="mt-auto flex flex-wrap items-center gap-2 pt-1.5 text-[11.5px] font-bold text-(--color-fog)">
+          <span className="rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5">
+            {recipe.source?.name ?? "local"}
+          </span>
+          <span>{recipeTimeSummary(recipe)}</span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function BrowseRecipeCard({
+  onOpen,
+  recipe,
+  section,
+}: {
+  onOpen: (key: string) => void;
+  recipe: SharedRecipe;
+  section: RecipeSection;
+}) {
+  const recipeKey = sharedRecipeKey(recipe);
+
+  return (
+    <button
+      className={`${cardClassName} relative flex h-full w-full flex-col items-stretch gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-sage-soft) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sage)]`}
+      onClick={() => onOpen(recipeKey)}
+      type="button"
+    >
+      <div className="relative aspect-[16/10] w-full border-b-2 border-(--color-ink) bg-(--color-soft)">
+        <CardCover imageUrl={recipe.imageUrl} />
+      </div>
+      <div className="flex flex-1 flex-col gap-1.5 p-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <strong className="text-[15px] leading-tight text-(--color-ink)">
+            {recipe.title}
+          </strong>
+          {section === "shared" && !recipe.seenAt ? (
+            <span className="rounded-full border-2 border-(--color-sage) bg-(--color-sage-soft) px-2 py-0.5 text-[10.5px] font-bold text-(--color-sage)">
+              New
+            </span>
+          ) : null}
+          {section === "shared" && recipe.copiedRecipeId ? (
+            <span className="rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5 text-[10.5px] font-bold text-(--color-fog)">
+              Saved
+            </span>
+          ) : null}
+        </div>
+        <span className="line-clamp-2 text-[13px] leading-snug text-(--color-fog)">
+          {recipe.description || "Shared OpenCook recipe"}
+        </span>
+        <span className="mt-auto flex flex-wrap items-center gap-2 pt-1.5 text-[11.5px] font-bold text-(--color-fog)">
+          <span className="inline-flex items-center gap-1 rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5">
+            <Users size={11} />
+            {recipe.owner.name}
+          </span>
+          <span>{recipeTimeSummary(recipe)}</span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
 // The library shelf: a full-width gallery of recipe cards. No recipe is open
 // until a card is clicked.
 export function RecipeLibrary({
   browseRecipes,
+  hasFoodPreferences,
   loading,
   onCreateBlank,
   onImport,
   onOpenBrowse,
   onOpenOwned,
+  onOpenPreferences,
   onQuery,
   onSection,
   ownedRecipes,
@@ -1256,11 +1331,13 @@ export function RecipeLibrary({
   sharedCount,
 }: {
   browseRecipes: SharedRecipe[];
+  hasFoodPreferences: boolean | null;
   loading: boolean;
   onCreateBlank: () => void | Promise<void>;
   onImport: () => void;
   onOpenBrowse: (key: string) => void;
   onOpenOwned: (id: string) => void;
+  onOpenPreferences: () => void;
   onQuery: (value: string) => void;
   onSection: (section: RecipeSection) => void;
   ownedRecipes: Recipe[];
@@ -1272,7 +1349,13 @@ export function RecipeLibrary({
   const loggedIn = Boolean(sessionUserId);
   return (
     <FullWidthPage>
-      <TopBar loggedIn={loggedIn} onCreateBlank={onCreateBlank} onImport={onImport} />
+      <TopBar
+        hasFoodPreferences={hasFoodPreferences}
+        loggedIn={loggedIn}
+        onCreateBlank={onCreateBlank}
+        onImport={onImport}
+        onOpenPreferences={onOpenPreferences}
+      />
       {loggedIn ? (
         <RecipeSectionTabs
           onSelect={onSection}
@@ -1280,23 +1363,23 @@ export function RecipeLibrary({
           sharedCount={sharedCount}
         />
       ) : null}
-      <div className="m-0 grid min-h-12 grid-cols-[32px_minmax(0,1fr)] items-center gap-2.5 rounded-2xl border-2 border-solid border-(--color-ink) bg-[linear-gradient(135deg,#fffdf8,#fff4d7)] p-2 shadow-[3px_3px_0_0_var(--color-ink)] transition focus-within:-translate-y-0.5 focus-within:shadow-[5px_5px_0_0_var(--color-ink)] [&>input]:min-w-0 [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:font-semibold [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input::placeholder]:text-[#8a8378]">
-        <span className="flex size-8 items-center justify-center rounded-xl border-2 border-(--color-ink) bg-(--color-sage-soft) text-(--color-sage)">
-          <Search aria-hidden="true" size={17} />
-        </span>
-        <input
-          aria-label="Search recipes"
-          onChange={(event) => onQuery(event.target.value)}
-          placeholder={
-            section === "mine"
-              ? "Search title, ingredients, tags, source"
-              : section === "shared"
-                ? "Search recipes shared with you"
-                : "Search public recipes"
-          }
-          value={query}
-        />
-      </div>
+      <VoiceSearchInput
+        aria-label="Search recipes"
+        containerClassName="m-0 grid min-h-12 grid-cols-[32px_minmax(0,1fr)_32px] items-center gap-2.5 rounded-2xl border-2 border-solid border-(--color-ink) bg-[linear-gradient(135deg,#fffdf8,#fff4d7)] p-2 shadow-[3px_3px_0_0_var(--color-ink)] transition focus-within:-translate-y-0.5 focus-within:shadow-[5px_5px_0_0_var(--color-ink)] [&>input]:min-w-0 [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:font-semibold [&>input]:text-(--color-ink) [&>input]:outline-0 [&>input::placeholder]:text-[#8a8378]"
+        micButtonClassName="grid size-8 place-items-center rounded-xl border-2 border-(--color-ink) bg-(--color-panel) text-(--color-ink) transition hover:bg-(--color-sage-soft)"
+        activeMicButtonClassName="grid size-8 place-items-center rounded-xl border-2 border-(--color-tomato) bg-[color-mix(in_oklch,var(--color-tomato)_14%,white)] text-(--color-tomato-dark)"
+        onValueChange={onQuery}
+        placeholder={
+          section === "mine"
+            ? "Search title, ingredients, tags, source"
+            : section === "shared"
+              ? "Search recipes shared with you"
+              : "Search public recipes"
+        }
+        searchIconWrapperClassName="flex size-8 items-center justify-center rounded-xl border-2 border-(--color-ink) bg-(--color-sage-soft) text-(--color-sage)"
+        statusClassName="m-0 text-[11.5px] font-black leading-snug text-(--color-tomato-dark)"
+        value={query}
+      />
 
       {loading ? (
         <>
@@ -1307,81 +1390,33 @@ export function RecipeLibrary({
         </>
       ) : section === "mine" ? (
         <>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
-            {ownedRecipes.map((recipe) => (
-              <button
-                className={`${cardClassName} relative flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-tomato) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[-0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-tomato)]`}
-                key={recipe.id}
-                onClick={() => onOpenOwned(recipe.id)}
-                type="button"
-              >
-                <div className="relative aspect-[16/10] w-full border-b-2 border-(--color-ink) bg-(--color-soft)">
-                  <CardCover imageUrl={recipe.imageUrl} />
-                </div>
-                <div className="flex flex-1 flex-col gap-1.5 p-3.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <strong className="text-[15px] leading-tight text-(--color-ink)">
-                      {recipe.title}
-                    </strong>
-                    <VisibilityBadge visibility={recipe.visibility} />
-                  </div>
-                  <span className="line-clamp-2 text-[13px] leading-snug text-(--color-fog)">
-                    {recipe.description || "Local OpenCook recipe"}
-                  </span>
-                  <span className="mt-auto flex flex-wrap items-center gap-2 pt-1.5 text-[11.5px] font-bold text-(--color-fog)">
-                    <span className="rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5">
-                      {recipe.source?.name ?? "local"}
-                    </span>
-                    <span>{recipeTimeSummary(recipe)}</span>
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
+          <VirtualGrid
+            estimatedRowHeight={300}
+            getKey={(recipe) => recipe.id}
+            items={ownedRecipes}
+            minColumnWidth={248}
+            renderItem={(recipe) => (
+              <OwnedRecipeCard onOpen={onOpenOwned} recipe={recipe} />
+            )}
+          />
         </>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(248px,1fr))] gap-5">
-          {browseRecipes.map((recipe) => (
-            <button
-              className={`${cardClassName} relative flex flex-col gap-0 overflow-hidden p-0 text-left transition-transform before:absolute before:top-3 before:left-3 before:z-10 before:size-3 before:rounded-full before:border-2 before:border-(--color-ink) before:bg-(--color-sage-soft) before:shadow-[1px_1px_0_0_var(--color-ink)] before:content-[''] hover:-translate-x-px hover:-translate-y-px hover:rotate-[0.35deg] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sage)]`}
-              key={sharedRecipeKey(recipe)}
-              onClick={() => onOpenBrowse(sharedRecipeKey(recipe))}
-              type="button"
-            >
-              <div className="relative aspect-[16/10] w-full border-b-2 border-(--color-ink) bg-(--color-soft)">
-                <CardCover imageUrl={recipe.imageUrl} />
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5 p-3.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-[15px] leading-tight text-(--color-ink)">
-                    {recipe.title}
-                  </strong>
-                  {section === "shared" && !recipe.seenAt ? (
-                    <span className="rounded-full border-2 border-(--color-sage) bg-(--color-sage-soft) px-2 py-0.5 text-[10.5px] font-bold text-(--color-sage)">
-                      New
-                    </span>
-                  ) : null}
-                  {section === "shared" && recipe.copiedRecipeId ? (
-                    <span className="rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5 text-[10.5px] font-bold text-(--color-fog)">
-                      Saved
-                    </span>
-                  ) : null}
-                </div>
-                <span className="line-clamp-2 text-[13px] leading-snug text-(--color-fog)">
-                  {recipe.description || "Shared OpenCook recipe"}
-                </span>
-                <span className="mt-auto flex flex-wrap items-center gap-2 pt-1.5 text-[11.5px] font-bold text-(--color-fog)">
-                  <span className="inline-flex items-center gap-1 rounded-full border-2 border-(--color-line) bg-(--color-rail) px-2 py-0.5">
-                    <Users size={11} />
-                    {recipe.owner.name}
-                  </span>
-                  <span>{recipeTimeSummary(recipe)}</span>
-                </span>
-              </div>
-            </button>
-          ))}
+        <>
+          <VirtualGrid
+            estimatedRowHeight={300}
+            getKey={sharedRecipeKey}
+            items={browseRecipes}
+            minColumnWidth={248}
+            renderItem={(recipe) => (
+              <BrowseRecipeCard
+                onOpen={onOpenBrowse}
+                recipe={recipe}
+                section={section}
+              />
+            )}
+          />
           {browseRecipes.length === 0 ? (
-            <p className={`${emptyNoteClass} col-span-full`}>
+            <p className={emptyNoteClass}>
               {section === "shared" && !sessionUserId
                 ? "Log in to see recipes from other people."
                 : section === "shared"
@@ -1389,11 +1424,11 @@ export function RecipeLibrary({
                   : "No public recipes yet. Make one of yours public to start the shelf."}
             </p>
           ) : null}
-        </div>
+        </>
       )}
 
       {!loading && section === "mine" && ownedRecipes.length === 0 ? (
-        <p className={`${emptyNoteClass} col-span-full`}>
+        <p className={emptyNoteClass}>
           No recipes yet. Use “New recipe” to start one or import from a link.
         </p>
       ) : null}

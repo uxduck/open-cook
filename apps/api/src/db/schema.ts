@@ -1,4 +1,6 @@
 import type {
+  CookbookKind,
+  CookbookVisibility,
   FoodPreferences,
   GatheringArtifactKind,
   GatheringArtifactProvider,
@@ -180,6 +182,35 @@ export const sessionRelations = relations(session, ({ one }) => ({
   }),
 }));
 
+export const agentTokens = sqliteTable(
+  "agent_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tokenPrefix: text("token_prefix").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(timestampMsDefault),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("agent_tokens_user_id_idx").on(table.userId),
+    index("agent_tokens_revoked_at_idx").on(table.revokedAt),
+  ],
+);
+
+export const agentTokensRelations = relations(agentTokens, ({ one }) => ({
+  user: one(user, {
+    fields: [agentTokens.userId],
+    references: [user.id],
+  }),
+}));
+
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
@@ -297,6 +328,77 @@ export const recipeSharesRelations = relations(recipeShares, ({ one }) => ({
   sharedWithUser: one(user, {
     fields: [recipeShares.sharedWithUserId],
     references: [user.id],
+  }),
+}));
+
+export const cookbooks = sqliteTable(
+  "cookbooks",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<CookbookKind>().notNull().default("top_level"),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    visibility: text("visibility")
+      .$type<CookbookVisibility>()
+      .notNull()
+      .default("private"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("cookbooks_user_top_level_unique")
+      .on(table.userId)
+      .where(sql`kind = 'top_level'`),
+    uniqueIndex("cookbooks_slug_unique").on(table.slug),
+    index("cookbooks_user_updated_at_idx").on(table.userId, table.updatedAt),
+    index("cookbooks_visibility_idx").on(table.visibility),
+  ],
+);
+
+export const cookbookRecipes = sqliteTable(
+  "cookbook_recipes",
+  {
+    cookbookId: text("cookbook_id")
+      .notNull()
+      .references(() => cookbooks.id, { onDelete: "cascade" }),
+    recipeUserId: text("recipe_user_id").notNull(),
+    recipeId: text("recipe_id").notNull(),
+    position: integer("position").notNull().default(0),
+    addedAt: text("added_at").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.cookbookId, table.recipeUserId, table.recipeId],
+    }),
+    foreignKey({
+      columns: [table.recipeUserId, table.recipeId],
+      foreignColumns: [recipes.userId, recipes.id],
+    }).onDelete("cascade"),
+    index("cookbook_recipes_recipe_idx").on(table.recipeUserId, table.recipeId),
+    index("cookbook_recipes_position_idx").on(table.cookbookId, table.position),
+  ],
+);
+
+export const cookbooksRelations = relations(cookbooks, ({ many, one }) => ({
+  owner: one(user, {
+    fields: [cookbooks.userId],
+    references: [user.id],
+  }),
+  recipes: many(cookbookRecipes),
+}));
+
+export const cookbookRecipesRelations = relations(cookbookRecipes, ({ one }) => ({
+  cookbook: one(cookbooks, {
+    fields: [cookbookRecipes.cookbookId],
+    references: [cookbooks.id],
+  }),
+  recipe: one(recipes, {
+    fields: [cookbookRecipes.recipeUserId, cookbookRecipes.recipeId],
+    references: [recipes.userId, recipes.id],
   }),
 }));
 
@@ -458,6 +560,10 @@ export const stashcookRawExports = sqliteTable(
 
 export type RecipeRow = typeof recipes.$inferSelect;
 export type NewRecipeRow = typeof recipes.$inferInsert;
+export type CookbookRow = typeof cookbooks.$inferSelect;
+export type NewCookbookRow = typeof cookbooks.$inferInsert;
+export type CookbookRecipeRow = typeof cookbookRecipes.$inferSelect;
+export type NewCookbookRecipeRow = typeof cookbookRecipes.$inferInsert;
 export type RecipeCookProgressRow = typeof recipeCookProgress.$inferSelect;
 export type UserFoodPreferencesRow = typeof userFoodPreferences.$inferSelect;
 export type GatheringRow = typeof gatherings.$inferSelect;

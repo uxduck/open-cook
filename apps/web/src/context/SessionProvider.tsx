@@ -23,7 +23,20 @@ type SessionContextValue = {
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
+const serverSessionContext: SessionContextValue = {
+  session: null,
+  sessionLoading: false,
+  sessionError: null,
+  refreshSession: async () => null,
+  signOut: async () => undefined,
+  openAuth: () => undefined,
+};
+
 export function useSession(): SessionContextValue {
+  if (typeof window === "undefined") {
+    return serverSessionContext;
+  }
+
   const value = useContext(SessionContext);
   if (!value) {
     throw new Error("useSession must be used within a SessionProvider");

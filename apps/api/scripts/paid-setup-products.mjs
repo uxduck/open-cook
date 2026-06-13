@@ -1,6 +1,8 @@
-// Creates the four OpenCook products in the Paid org for the API key in
+// Creates the OpenCook products in the Paid org for the API key in
 // apps/api/.env. Idempotent: skips any product whose externalId already
-// exists. Prints the resulting IDs and each product's pricing attributes.
+// exists. Public pricing sells one Chef subscription; credit-pack products are
+// retained for future/internal top-ups without exposing them in the signup flow.
+// Prints the resulting IDs and each product's pricing attributes.
 import { readFileSync } from "node:fs";
 import { PaidClient } from "@paid-ai/paid-node";
 
@@ -33,17 +35,19 @@ const wanted = [
     externalId: "opencook-pro",
     name: "OpenCook Chef",
     description:
-      "Chef plan: unlimited recipes, 20 restyles/month (500 credits/month), 3 stories/month. £3.99/month.",
+      "Consumer Chef plan: unlimited recipes, 20 AI recipe edits/month (500 credits/month), 3 story generations/month as they roll out. £3.99/month.",
   },
   {
     externalId: "opencook-credits-5",
-    name: "OpenCook Credits — £5 Pack",
-    description: "One-time £5 credit pack: 250 credits (restyle = 25, story = 50).",
+    name: "OpenCook Credits — £5 Internal Top-Up",
+    description:
+      "One-time £5 internal/future top-up: 250 credits (AI edit = 25, story = 50). Not shown on consumer pricing.",
   },
   {
     externalId: "opencook-credits-10",
-    name: "OpenCook Credits — £10 Pack",
-    description: "One-time £10 credit pack: 500 credits (restyle = 25, story = 50).",
+    name: "OpenCook Credits — £10 Internal Top-Up",
+    description:
+      "One-time £10 internal/future top-up: 500 credits (AI edit = 25, story = 50). Not shown on consumer pricing.",
   },
 ];
 

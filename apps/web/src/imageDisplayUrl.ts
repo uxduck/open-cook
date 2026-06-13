@@ -33,7 +33,19 @@ export function displayImageUrl(
 }
 
 function browserLocation(): ImageDisplayLocation | undefined {
-  return typeof window === "undefined" ? undefined : window.location;
+  if (typeof window !== "undefined") {
+    return window.location;
+  }
+
+  if (import.meta.env.DEV) {
+    return {
+      hostname: "localhost",
+      href: "http://localhost/",
+      origin: "http://localhost",
+    };
+  }
+
+  return undefined;
 }
 
 function isLocalHost(hostname: string) {

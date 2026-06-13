@@ -15,8 +15,10 @@ export const marketingSocialLinkClass =
 
 export type Page =
   | "recipes"
+  | "cookbooks"
   | "gatherings"
   | "gathering"
+  | "gathering-share"
   | "gathering-generating"
   | "api"
   | "billing"
@@ -79,8 +81,7 @@ export function recipeShareLinkState({
   recipeId?: string;
   visibility?: Recipe["visibility"];
 }) {
-  const shareableRecipeId =
-    recipeId && !recipeId.startsWith("demo-") ? recipeId : "";
+  const shareableRecipeId = recipeId && !recipeId.startsWith("demo-") ? recipeId : "";
   const selectedVisibility = visibility ?? "private";
   const savedVisibility = persistedVisibility ?? "private";
   const hasUnsavedVisibility = Boolean(

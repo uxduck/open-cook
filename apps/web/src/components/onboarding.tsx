@@ -17,17 +17,16 @@ import {
   Plus,
   Salad,
   Save,
-  Sparkles,
   Target,
   UserPlus,
   Users,
   Utensils,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useSession } from "../context/SessionProvider";
-import { Button, workspacePageBaseClassName } from "../ui";
-import { WorkspaceHeader } from "./tools";
+import { useDebouncedValue } from "../lib/recipe";
+import { Button, pageContainerClassName, workspaceScrollPageClassName } from "../ui";
 
 type ListField =
   | "allergies"
@@ -127,18 +126,6 @@ const skillOptions: Array<Option<FoodPreferences["skillLevel"]>> = [
   { label: "Confident", value: "confident" },
   { label: "Advanced", value: "advanced" },
 ];
-
-const dietLabels = Object.fromEntries(
-  dietOptions.map((option) => [option.value, option.label]),
-) as Record<FoodPreferences["dietPattern"], string>;
-
-const spiceLabels = Object.fromEntries(
-  spiceOptions.map((option) => [option.value, option.label]),
-) as Record<FoodPreferences["spiceLevel"], string>;
-
-const skillLabels = Object.fromEntries(
-  skillOptions.map((option) => [option.value, option.label]),
-) as Record<FoodPreferences["skillLevel"], string>;
 
 const dietValues = dietOptions.map((option) => option.value);
 const spiceValues = spiceOptions.map((option) => option.value);
@@ -272,10 +259,6 @@ function writeStoredPreferences(preferences: FoodPreferences) {
   }
 }
 
-function compactList(values: string[], emptyLabel: string) {
-  return values.length ? values.join(", ") : emptyLabel;
-}
-
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
 }
@@ -299,11 +282,19 @@ export function FoodPreferencesPage({
     const stored = readStoredPreferences();
     return stored ?? defaultFoodPreferences;
   });
-  const [loadingPreferences, setLoadingPreferences] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
   const [statusMessage, setStatusMessage] = useState("");
+  // Tracks the last preferences snapshot synced to the account so the auto-save
+  // effect can skip redundant writes (e.g. the initial load from the server).
+  const lastSyncedRef = useRef<string | null>(null);
+
+  // Auto-save only applies to the signed-in preferences page. The onboarding
+  // flow (not embedded, no session yet) keeps an explicit "Save and continue"
+  // button because that action also advances the user to registration.
+  const autoSave = embedded && Boolean(session);
+  const debouncedPreferences = useDebouncedValue(preferences, 700);
 
   useEffect(() => {
     writeStoredPreferences(preferences);
@@ -316,8 +307,7 @@ export function FoodPreferencesPage({
 
     void navigate({
       replace: true,
-      search: { page: "preferences" },
-      to: "/app",
+      to: "/app/preferences",
     });
   }, [embedded, navigate, session, sessionLoading]);
 
@@ -327,23 +317,18 @@ export function FoodPreferencesPage({
     }
 
     let cancelled = false;
-    setLoadingPreferences(true);
     api
       .getFoodPreferences()
       .then((result) => {
         if (cancelled || !result.preferences) {
           return;
         }
+        lastSyncedRef.current = JSON.stringify(result.preferences);
         setPreferences(result.preferences);
       })
       .catch((error) => {
         if (!cancelled) {
           setStatusMessage(`Could not load saved preferences: ${errorMessage(error)}`);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingPreferences(false);
         }
       });
 
@@ -352,73 +337,47 @@ export function FoodPreferencesPage({
     };
   }, [session, sessionLoading]);
 
-  const summaryItems = useMemo(
-    () => [
-      {
-        icon: <Leaf size={19} />,
-        label: "Diet pattern",
-        value: dietLabels[preferences.dietPattern],
-      },
-      {
-        icon: <Salad size={19} />,
-        label: "Additional needs",
-        value: compactList(preferences.dietaryNeeds, "No extra rules"),
-      },
-      {
-        icon: <AlertTriangle size={19} />,
-        label: "Allergies",
-        value: compactList(preferences.allergies, "None listed"),
-      },
-      {
-        icon: <Ban size={19} />,
-        label: "Avoid",
-        value: compactList(preferences.avoidedIngredients, "Nothing listed"),
-      },
-      {
-        icon: <Heart size={19} />,
-        label: "Foods to use more",
-        value: compactList(preferences.favoriteIngredients, "Open to anything"),
-      },
-      {
-        icon: <Globe2 size={19} />,
-        label: "Favorite cuisines",
-        value: compactList(preferences.favoriteCuisines, "No preference"),
-      },
-      {
-        icon: <Flame size={19} />,
-        label: "Spice",
-        value: spiceLabels[preferences.spiceLevel],
-      },
-      {
-        icon: <Clock3 size={19} />,
-        label: "Cooking time",
-        value: `${preferences.maxCookTimeMinutes} min or less`,
-      },
-      {
-        icon: <Target size={19} />,
-        label: "Goals",
-        value: compactList(preferences.cookingGoals, "No specific goals"),
-      },
-      {
-        icon: <ChefHat size={19} />,
-        label: "Skill level",
-        value: skillLabels[preferences.skillLevel],
-      },
-      {
-        icon: <Users size={19} />,
-        label: "Household",
-        value: `${preferences.householdSize} ${
-          preferences.householdSize === 1 ? "person" : "people"
-        }`,
-      },
-      {
-        icon: <Utensils size={19} />,
-        label: "Equipment",
-        value: compactList(preferences.equipment, "No equipment listed"),
-      },
-    ],
-    [preferences],
-  );
+  useEffect(() => {
+    if (!autoSave) {
+      return undefined;
+    }
+
+    const serialized = JSON.stringify(debouncedPreferences);
+    if (serialized === lastSyncedRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSaveState("saving");
+    setStatusMessage("");
+    api
+      .updateFoodPreferences(debouncedPreferences)
+      .then((saved) => {
+        if (cancelled) {
+          return;
+        }
+        lastSyncedRef.current = JSON.stringify(saved.preferences);
+        writeStoredPreferences(saved.preferences);
+        setSaveState("saved");
+        setStatusMessage("Preferences saved.");
+        onSaved?.();
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setSaveState("error");
+        setStatusMessage(
+          `Saved in this browser, but could not sync to your account: ${errorMessage(
+            error,
+          )}`,
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoSave, debouncedPreferences, onSaved]);
 
   function setListPreference(field: ListField, next: string[]) {
     setSaveState("idle");
@@ -480,21 +439,15 @@ export function FoodPreferencesPage({
     <main
       className={
         embedded
-          ? `${workspacePageBaseClassName} bg-(--background) text-(--foreground) [font-family:var(--font-ui)]`
+          ? `${workspaceScrollPageClassName} bg-(--background) text-(--foreground) [font-family:var(--font-ui)]`
           : "min-h-screen bg-(--background) text-(--foreground) [font-family:var(--font-ui)]"
       }
     >
-      {embedded ? (
-        <div className="mx-auto w-full max-w-[1220px]">
-          <WorkspaceHeader
-            description="Set the default diets, allergies, cuisines, foods, and kitchen constraints OpenCook should respect when adapting recipes."
-            icon={<Salad size={25} />}
-            title="Food preferences"
-          />
-        </div>
-      ) : (
+      {!embedded ? (
         <header className="border-b-2 border-(--border) bg-[color-mix(in_oklch,var(--background)_86%,white)] shadow-[0_2px_0_var(--border)]">
-          <div className="mx-auto flex min-h-[72px] w-full max-w-[1220px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div
+            className={`${pageContainerClassName} flex min-h-[72px] items-center justify-between gap-3 px-4 py-3 sm:px-6`}
+          >
             <Link
               className="inline-flex min-h-10 items-center gap-2 rounded-lg text-xl font-black text-(--foreground)"
               to="/"
@@ -531,11 +484,11 @@ export function FoodPreferencesPage({
             </nav>
           </div>
         </header>
-      )}
+      ) : null}
 
       <section
-        className={`mx-auto grid w-full max-w-[1220px] gap-8 lg:grid-cols-[minmax(0,1fr)_390px] ${
-          embedded ? "py-7" : "px-4 py-8 sm:px-6 lg:py-10"
+        className={`mx-auto grid w-full max-w-[980px] gap-8 ${
+          embedded ? "" : "px-4 py-8 sm:px-6 lg:py-10"
         }`}
       >
         <div className="min-w-0">
@@ -743,53 +696,10 @@ export function FoodPreferencesPage({
             </QuestionRow>
           </div>
         </div>
-
-        <aside className="h-fit rounded-lg border-2 border-(--border) bg-[color-mix(in_oklch,var(--card)_82%,var(--color-sage-soft))] p-5 shadow-[var(--shadow-pop)] lg:sticky lg:top-6 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="[font-family:var(--font-display)] text-2xl font-black leading-none tracking-normal">
-              Preference summary
-            </h2>
-            {loadingPreferences ? (
-              <Loader2
-                aria-label="Loading preferences"
-                className="animate-spin text-(--color-sage)"
-                size={18}
-              />
-            ) : null}
-          </div>
-
-          <div className="divide-y divide-(--color-line)">
-            {summaryItems.map((item) => (
-              <div
-                className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 py-3"
-                key={item.label}
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-(--color-sage)">
-                  {item.icon}
-                </span>
-                <span className="min-w-0">
-                  <strong className="block text-sm font-black leading-tight text-(--foreground)">
-                    {item.label}
-                  </strong>
-                  <span className="mt-1 block break-words text-sm font-semibold leading-5 text-(--muted-foreground)">
-                    {item.value}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 border-t-2 border-dashed border-(--color-line) pt-4">
-            <p className="flex items-start gap-2 text-sm font-extrabold leading-5 text-(--foreground)">
-              <Sparkles className="mt-0.5 shrink-0 text-(--color-tomato)" size={16} />
-              These preferences become your default recipe constraints.
-            </p>
-          </div>
-        </aside>
       </section>
 
       <div className="border-t-2 border-(--border) bg-[color-mix(in_oklch,var(--background)_88%,white)] shadow-[0_-2px_0_var(--border)] md:sticky md:bottom-0">
-        <div className="mx-auto flex w-full max-w-[1220px] flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex w-full max-w-[980px] flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:justify-between">
           <div className="min-h-6">
             {statusMessage ? (
               <p
@@ -804,32 +714,53 @@ export function FoodPreferencesPage({
               </p>
             ) : (
               <p className="text-sm font-semibold text-(--muted-foreground)">
-                {session
-                  ? "Signed in preferences sync to your OpenCook account."
-                  : "Preferences are saved in this browser before account creation."}
+                {autoSave
+                  ? "Changes save automatically to your OpenCook account."
+                  : session
+                    ? "Signed in preferences sync to your OpenCook account."
+                    : "Preferences are saved in this browser before account creation."}
               </p>
             )}
           </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <Button disabled={saveState === "saving"} onClick={skipOnboarding}>
               {embedded ? "Back to recipes" : "Skip for now"}
             </Button>
-            <Button
-              disabled={saveState === "saving" || sessionLoading}
-              onClick={() => void savePreferences()}
-              variant="primary"
-            >
-              {saveState === "saving" ? (
-                <Loader2 className="animate-spin" size={16} />
-              ) : saveState === "saved" ? (
-                <Check size={16} />
-              ) : (
-                <Save size={16} />
-              )}
-              {embedded ? "Save preferences" : "Save and continue"}
-              {embedded ? null : <ArrowRight size={16} />}
-            </Button>
+            {autoSave ? (
+              <span
+                aria-live="polite"
+                className="flex items-center gap-2 text-sm font-extrabold text-(--muted-foreground)"
+              >
+                {saveState === "saving" ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    Saving…
+                  </>
+                ) : saveState === "error" ? null : saveState === "saved" ? (
+                  <>
+                    <Check size={16} />
+                    Saved
+                  </>
+                ) : null}
+              </span>
+            ) : (
+              <Button
+                disabled={saveState === "saving" || sessionLoading}
+                onClick={() => void savePreferences()}
+                variant="primary"
+              >
+                {saveState === "saving" ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : saveState === "saved" ? (
+                  <Check size={16} />
+                ) : (
+                  <Save size={16} />
+                )}
+                {embedded ? "Save preferences" : "Save and continue"}
+                {embedded ? null : <ArrowRight size={16} />}
+              </Button>
+            )}
           </div>
         </div>
       </div>

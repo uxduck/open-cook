@@ -1,11 +1,16 @@
 import {
+  type CookbookRecipe,
+  type CookbookVisibility,
   decodeRecipeText,
   type CreateRecipeInput,
   type FoodPreferences,
   type Gathering,
   type GatheringGuestResponse,
   type GeneratedRecipeImage,
+  type OwnedGathering,
+  type OwnedCookbook,
   type PublicGathering,
+  type PublicCookbook,
   type Recipe,
   type RecipeAiAudience,
   type RecipeAiProviderMetadata,
@@ -98,6 +103,21 @@ export type ShoppingListResult = {
   }>;
 };
 
+export type CodexConnection = {
+  createdAt: string;
+  id: string;
+  lastUsedAt: string | null;
+  name: string;
+  tokenPrefix: string;
+};
+
+export type CreatedCodexConnection = CodexConnection & {
+  apiBase: string;
+  env: string;
+  pluginName: "opencook";
+  token: string;
+};
+
 export type RecipeSearchResult = {
   query: {
     q?: string;
@@ -153,7 +173,18 @@ export type BillingSummary = {
   billingEnabled: boolean;
 };
 
-export type CheckoutTarget = "pro" | "credits_5" | "credits_10";
+export type CheckoutTarget = "pro";
+
+export type SaveCookbookPayload = {
+  description?: string;
+  recipeIds?: string[];
+  title?: string;
+  visibility?: CookbookVisibility;
+};
+
+export type CreateCookbookPayload = SaveCookbookPayload & {
+  title: string;
+};
 
 export type RecipeRemixPayload = {
   recipeId?: string;
@@ -229,7 +260,7 @@ export type SaveGatheringPayload = {
 };
 
 export type PublishGatheringResult = {
-  gathering: Gathering;
+  gathering: OwnedGathering;
   url: string;
 };
 
@@ -238,7 +269,7 @@ export type SendGatheringInvitesPayload = {
 };
 
 export type SendGatheringInvitesResult = {
-  gathering: Gathering;
+  gathering: OwnedGathering;
   sentCount: number;
   url: string;
 };
@@ -246,6 +277,7 @@ export type SendGatheringInvitesResult = {
 export type GatheringArtifactId =
   | "menu-images"
   | "page-artwork"
+  | "rsvp-artwork"
   | "voiceover"
   | "video-teaser";
 
@@ -394,6 +426,18 @@ function decodeStructureResult(result: RecipeStructureResult): RecipeStructureRe
   return { ...result, recipe: decodeRecipeText(result.recipe) };
 }
 
+function decodePublicCookbook(cookbook: PublicCookbook): PublicCookbook {
+  return { ...cookbook, recipes: decodeRecipeList(cookbook.recipes) };
+}
+
+function decodeCookbookRecipe(result: CookbookRecipe): CookbookRecipe {
+  return {
+    ...result,
+    cookbook: decodePublicCookbook(result.cookbook),
+    recipe: decodeRecipeText(result.recipe),
+  };
+}
+
 async function requestRecipe<T extends Recipe>(
   path: string,
   init?: RequestInit,
@@ -458,6 +502,61 @@ export const api = {
       query
         ? `/api/recipes/public?q=${encodeURIComponent(query)}`
         : "/api/recipes/public",
+    ),
+  listCookbooks: () => request<OwnedCookbook[]>("/api/cookbooks"),
+  listPublicCookbooks: () =>
+    request<PublicCookbook[]>("/api/cookbooks/public").then((cookbooks) =>
+      cookbooks.map(decodePublicCookbook),
+    ),
+  createCookbook: (payload: CreateCookbookPayload) =>
+    request<OwnedCookbook>("/api/cookbooks", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  updateCookbook: (id: string, payload: SaveCookbookPayload) =>
+    request<OwnedCookbook>(`/api/cookbooks/${encodeURIComponent(id)}`, {
+      body: JSON.stringify(payload),
+      method: "PATCH",
+    }),
+  deleteCookbook: (id: string) =>
+    request<void>(`/api/cookbooks/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  getTopLevelCookbook: () => request<OwnedCookbook>("/api/cookbooks/top-level"),
+  updateTopLevelCookbook: (payload: {
+    description?: string;
+    title?: string;
+    visibility?: CookbookVisibility;
+  }) =>
+    request<OwnedCookbook>("/api/cookbooks/top-level", {
+      body: JSON.stringify(payload),
+      method: "PUT",
+    }),
+  getPublicTopLevelCookbook: (ownerId: string) =>
+    request<PublicCookbook>(
+      `/api/cookbooks/top-level/${encodeURIComponent(ownerId)}`,
+    ).then(decodePublicCookbook),
+  getPublicCookbook: (slug: string) =>
+    request<PublicCookbook>(`/api/cookbooks/${encodeURIComponent(slug)}`).then(
+      decodePublicCookbook,
+    ),
+  getTopLevelCookbookRecipe: (ownerId: string, recipeId: string) =>
+    request<CookbookRecipe>(
+      `/api/cookbooks/top-level/${encodeURIComponent(ownerId)}/recipes/${encodeURIComponent(recipeId)}`,
+    ).then(decodeCookbookRecipe),
+  getCookbookRecipe: (slug: string, recipeId: string) =>
+    request<CookbookRecipe>(
+      `/api/cookbooks/${encodeURIComponent(slug)}/recipes/${encodeURIComponent(recipeId)}`,
+    ).then(decodeCookbookRecipe),
+  copyTopLevelCookbookRecipe: (ownerId: string, recipeId: string) =>
+    requestRecipe<Recipe>(
+      `/api/cookbooks/top-level/${encodeURIComponent(ownerId)}/recipes/${encodeURIComponent(recipeId)}/copy`,
+      { method: "POST" },
+    ),
+  copyCookbookRecipe: (slug: string, recipeId: string) =>
+    requestRecipe<Recipe>(
+      `/api/cookbooks/${encodeURIComponent(slug)}/recipes/${encodeURIComponent(recipeId)}/copy`,
+      { method: "POST" },
     ),
   getRecipeLink: (ownerId: string, recipeId: string) =>
     requestRecipe<SharedRecipe>(
@@ -539,6 +638,17 @@ export const api = {
       body: JSON.stringify({ recipeIds }),
       method: "POST",
     }),
+  listCodexConnections: () =>
+    request<CodexConnection[]>("/api/agents/codex-connections"),
+  createCodexConnection: (payload: { name?: string }) =>
+    request<CreatedCodexConnection>("/api/agents/codex-connections", {
+      body: JSON.stringify(payload),
+      method: "POST",
+    }),
+  revokeCodexConnection: (id: string) =>
+    request<void>(`/api/agents/codex-connections/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
   searchRecipes: (payload: {
     q?: string;
     tag?: string;
@@ -599,12 +709,19 @@ export const api = {
       method: "POST",
     }),
   getOwnedGathering: (id: string) =>
-    requestWithTimeout<Gathering>(
+    requestWithTimeout<OwnedGathering>(
       `/api/gatherings/mine/${encodeURIComponent(id)}`,
       gatheringLoadTimeoutMs,
     ),
+  duplicateGathering: (id: string) =>
+    request<OwnedGathering>(
+      `/api/gatherings/mine/${encodeURIComponent(id)}/duplicate`,
+      {
+        method: "POST",
+      },
+    ),
   updateGathering: (id: string, payload: SaveGatheringPayload) =>
-    request<Gathering>(`/api/gatherings/mine/${encodeURIComponent(id)}`, {
+    request<OwnedGathering>(`/api/gatherings/mine/${encodeURIComponent(id)}`, {
       body: JSON.stringify(payload),
       method: "PATCH",
     }),

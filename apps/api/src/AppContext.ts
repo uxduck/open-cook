@@ -22,11 +22,6 @@ export type Env = {
     RESEND_API_KEY?: string;
     RESEND_FROM_EMAIL?: string;
     RESEND_REPLY_TO?: string;
-    WORKERS_AI_MODEL?: string;
-    WORKERS_AI_RECIPE_IMAGE_MODEL?: string;
-    WORKERS_AI_RECIPE_PICKER_MODEL?: string;
-    WORKERS_AI_RECIPE_REMIX_MODEL?: string;
-    WORKERS_AI_RECIPE_STRUCTURE_MODEL?: string;
     WEBSITE_URL?: string;
     DEEPGRAM_API_KEY?: string;
     FAL_AI_API_KEY?: string;

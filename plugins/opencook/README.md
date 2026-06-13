@@ -27,13 +27,17 @@ For the hosted app, point the bridge at production:
 OPEN_COOK_API_BASE=https://open-cook.com
 ```
 
-If the API uses Better Auth, use a bearer session token:
+If the API uses Better Auth, open the API page in OpenCook and use `Connect Codex`
+to create a scoped Codex token:
 
 ```sh
-OPEN_COOK_AUTH_TOKEN=your-better-auth-session-token
+OPEN_COOK_AUTH_TOKEN=your-codex-token
 ```
 
-The bridge sends that value as `Authorization: Bearer <token>`. `OPEN_COOK_COOKIE` is still supported for local debugging, but it should not be the normal setup path for shared or hosted OpenCook accounts.
+The bridge sends that value as `Authorization: Bearer <token>`. OpenCook stores
+only a hash of scoped Codex tokens and shows the full token once. `OPEN_COOK_COOKIE`
+is still supported for local debugging, but it should not be the normal setup path
+for shared or hosted OpenCook accounts.
 
 When running the OpenCook repo locally, the bridge also checks the ignored repo-root `.env.local` and `.env` files for `OPEN_COOK_API_BASE`, `OPEN_COOK_AUTH_TOKEN`, and `OPEN_COOK_COOKIE`. For local development against D1, it can reuse the newest unexpired local Better Auth session when no explicit token or cookie is set.
 

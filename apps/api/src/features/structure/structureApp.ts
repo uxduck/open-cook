@@ -38,7 +38,6 @@ export const structureApp = new Hono<Env>().use("*", requireAuthMiddleware).post
     const { recipe } = c.req.valid("json");
     const structured = await structureRecipeWithAi(recipe, {
       ai: c.env.AI,
-      model: c.env.WORKERS_AI_RECIPE_STRUCTURE_MODEL,
     });
 
     return c.json({

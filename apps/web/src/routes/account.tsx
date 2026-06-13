@@ -23,8 +23,7 @@ function AccountRedirect() {
 
     void navigate({
       replace: true,
-      search: { page: "billing" },
-      to: "/app",
+      to: "/app/billing",
     });
   }, [navigate, session, sessionLoading]);
 

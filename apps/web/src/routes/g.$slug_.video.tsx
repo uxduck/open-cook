@@ -5,9 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { displayImageUrl } from "../imageDisplayUrl";
 import { errorMessage } from "../lib/recipe";
-import { buttonClassName, inlineStatusClassName } from "../ui";
+import {
+  buttonClassName,
+  inlineStatusClassName,
+  pageContainerClassName,
+} from "../ui";
 
-export const Route = createFileRoute("/g/$slug/video")({
+export const Route = createFileRoute("/g/$slug_/video")({
   component: GatheringVideoRoute,
 });
 
@@ -88,7 +92,7 @@ function GatheringVideoRoute() {
           </div>
         </section>
       ) : gathering ? (
-        <section className="mx-auto grid w-full max-w-[1040px] gap-5 px-5 py-6 md:px-8">
+        <section className={`${pageContainerClassName} grid gap-5 px-5 py-6 md:px-8`}>
           <div className="relative isolate min-h-[520px] overflow-hidden rounded-3xl border-2 border-(--color-ink) bg-(--color-panel) shadow-[5px_5px_0_0_var(--color-ink)]">
             {videoUrl ? (
               <video
@@ -125,9 +129,7 @@ function GatheringVideoRoute() {
                   {gathering.title}
                 </h1>
                 <p className="m-0 max-w-[58ch] text-[16px] font-semibold leading-relaxed text-white/92 drop-shadow-[0_1px_8px_rgba(0,0,0,0.34)]">
-                  {videoTeaser?.status === "failed"
-                    ? "The video could not be generated yet, but the gathering page is ready."
-                    : "The video teaser is being generated. The artwork preview will update when it is ready."}
+                  {videoStatusMessage(videoTeaser?.status)}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
@@ -173,4 +175,14 @@ function mediaStatusLabel(status: string) {
   if (status === "skipped") return "unavailable";
   if (status === "failed") return "failed";
   return status;
+}
+
+function videoStatusMessage(status: string | undefined) {
+  if (status === "skipped") {
+    return "A video teaser is not configured for this gathering.";
+  }
+  if (status === "failed") {
+    return "The video could not be generated yet, but the gathering page is ready.";
+  }
+  return "The video teaser is being generated. The artwork preview will update when it is ready.";
 }

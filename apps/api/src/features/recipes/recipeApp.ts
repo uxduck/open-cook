@@ -111,7 +111,7 @@ export const recipeApp = new Hono<Env>()
       if (isFreePlan(c.var.user) && (await c.var.store.count()) >= RECIPE_LIMIT_FREE) {
         return c.json(
           {
-            error: `Free plan is limited to ${RECIPE_LIMIT_FREE} recipes. Upgrade to Pro for unlimited.`,
+            error: `Free plan is limited to ${RECIPE_LIMIT_FREE} recipes. Upgrade to Chef for unlimited.`,
             reason: "recipe_limit",
             limit: RECIPE_LIMIT_FREE,
           },

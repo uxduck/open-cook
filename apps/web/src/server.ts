@@ -1,5 +1,6 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { isConfiguredApiOrigin, proxyApiRequest } from "./server/apiProxy";
+import { robotsTxtResponse, sitemapXmlResponse } from "./server/crawler";
 
 const API_PREFIXES = ["/api", "/docs", "/scalar"];
 const localApiUnavailableBody = JSON.stringify({
@@ -28,6 +29,12 @@ function localApiUnavailableResponse() {
 export default createServerEntry({
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === "/robots.txt") {
+      return robotsTxtResponse();
+    }
+    if (url.pathname === "/sitemap.xml") {
+      return sitemapXmlResponse();
+    }
     if (isApiRequest(url.pathname)) {
       try {
         return await proxyApiRequest(request);

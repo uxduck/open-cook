@@ -1,6 +1,10 @@
 import { createMiddleware } from "hono/factory";
 import type { Env } from "../../AppContext";
 import { createD1Database } from "../../db/db";
+import {
+  isCodexConnectionToken,
+  resolveCodexConnectionToken,
+} from "../agents/codexTokens";
 import { createAuth } from "./auth";
 
 export const authMiddleware = createMiddleware<Env>(async (c, next) => {
@@ -43,6 +47,23 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     return;
   }
 
+  const bearerToken = tokenFromAuthorization(c.req.header("Authorization"));
+  if (bearerToken && isCodexConnectionToken(bearerToken)) {
+    try {
+      const authSession = await resolveCodexConnectionToken(db, bearerToken);
+      if (authSession) {
+        c.set("user", authSession.user);
+        c.set("session", authSession.session);
+      }
+    } catch (error) {
+      console.error("[auth] Codex connection token resolution failed", error);
+      c.set("authSessionResolutionFailed", true);
+    }
+
+    await next();
+    return;
+  }
+
   try {
     const shouldBypassCookieCache = c.req.path === "/api/me";
     const authSession = await auth.api.getSession({
@@ -61,3 +82,11 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
 
   await next();
 });
+
+function tokenFromAuthorization(header: string | undefined) {
+  if (!header?.startsWith("Bearer ")) {
+    return undefined;
+  }
+
+  return header.slice("Bearer ".length).trim() || undefined;
+}
